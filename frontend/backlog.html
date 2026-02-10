@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - Backlog</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-left">
+                <h2>Task Manager</h2>
+                <a href="/static/backlog.html" class="nav-link active">Backlog</a>
+                <a href="/static/sprint.html" class="nav-link">Sprint</a>
+            </div>
+            <div class="nav-right">
+                <span id="currentUser" class="username"></span>
+                <button id="createIssueBtn" class="btn btn-primary">+ Create Issue</button>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>Backlog</h1>
+            <div class="controls">
+                <select id="sortBy" class="select">
+                    <option value="date">Sort by Date</option>
+                    <option value="status">Sort by Status</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="sprint-section">
+            <div class="sprint-header">
+                <h3>Available Sprints</h3>
+                <button id="createSprintBtn" class="btn btn-secondary">+ Create Sprint</button>
+            </div>
+            <div id="sprintsList" class="sprints-list"></div>
+        </div>
+
+        <div id="issuesList" class="issues-list"></div>
+    </div>
+
+    <!-- Create Issue Modal -->
+    <div id="createIssueModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Issue</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="createIssueForm">
+                <div class="form-group">
+                    <label for="issueTitle">Title *</label>
+                    <input type="text" id="issueTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="issueDescription">Description *</label>
+                    <textarea id="issueDescription" rows="5" required></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Issue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Sprint Modal -->
+    <div id="createSprintModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Sprint</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="createSprintForm">
+                <div class="form-group">
+                    <label for="sprintName">Sprint Name *</label>
+                    <input type="text" id="sprintName" placeholder="e.g., Sprint 1" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary cancel-sprint-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Sprint</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/backlog.js"></script>
+</body>
+</html>

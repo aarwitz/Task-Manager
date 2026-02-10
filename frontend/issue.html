@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - Issue</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-left">
+                <h2>Task Manager</h2>
+                <a href="/static/backlog.html" class="nav-link">Backlog</a>
+                <a href="/static/sprint.html" class="nav-link">Sprint</a>
+            </div>
+            <div class="nav-right">
+                <span id="currentUser" class="username"></span>
+                <button id="createIssueBtn" class="btn btn-primary">+ Create Issue</button>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="issue-detail">
+            <div class="issue-header">
+                <div>
+                    <div class="issue-id-badge">
+                        <span id="issueId"></span>
+                    </div>
+                    <h1 id="issueTitle"></h1>
+                </div>
+                <div class="issue-meta">
+                    <span class="status-badge" id="issueStatus"></span>
+                </div>
+            </div>
+
+            <div class="issue-info">
+                <div class="info-item">
+                    <strong>Created:</strong>
+                    <span id="issueCreated"></span>
+                </div>
+                <div class="info-item">
+                    <strong>Created by:</strong>
+                    <span id="issueCreatedBy"></span>
+                </div>
+            </div>
+
+            <div class="issue-section">
+                <h3>Description</h3>
+                <div id="issueDescription" class="issue-description"></div>
+            </div>
+
+            <div class="issue-section">
+                <h3>Comments</h3>
+                <div id="commentsList" class="comments-list"></div>
+                
+                <form id="addCommentForm" class="comment-form">
+                    <textarea 
+                        id="commentContent" 
+                        placeholder="Add a comment..." 
+                        rows="3"
+                        required
+                    ></textarea>
+                    <button type="submit" class="btn btn-primary">Submit Comment</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Issue Modal -->
+    <div id="createIssueModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Issue</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="createIssueForm">
+                <div class="form-group">
+                    <label for="newIssueTitle">Title *</label>
+                    <input type="text" id="newIssueTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="newIssueDescription">Description *</label>
+                    <textarea id="newIssueDescription" rows="5" required></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Issue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/issue.js"></script>
+</body>
+</html>

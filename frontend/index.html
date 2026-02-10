@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - Login</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <h1>Task Manager</h1>
+            <p class="subtitle">Simple project management for small teams</p>
+            <form id="loginForm">
+                <input 
+                    type="text" 
+                    id="username" 
+                    placeholder="Enter your username" 
+                    required 
+                    autocomplete="off"
+                >
+                <button type="submit">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username })
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    localStorage.setItem('username', username);
+                    
+                    // Check if there's an active sprint
+                    const sprintResponse = await fetch('/api/sprints/active');
+                    if (sprintResponse.ok) {
+                        window.location.href = '/static/sprint.html';
+                    } else {
+                        window.location.href = '/static/backlog.html';
+                    }
+                } else {
+                    alert('Login failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
