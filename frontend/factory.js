@@ -66,10 +66,10 @@ els.createIssueForm.onsubmit = async (e) => {
     els.createIssueForm.reset();
     openModal(false);
     await sync();
-    showToast('Run launched');
+    showToast('Issue created');
   } catch (err) {
     console.error(err);
-    showToast('Launch failed');
+    showToast('Create failed');
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = original;
