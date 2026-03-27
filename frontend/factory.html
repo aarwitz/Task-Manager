@@ -1,135 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenClaw Factory</title>
-    <link rel="stylesheet" href="/static/factory.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Mission Control</title>
+  <link rel="stylesheet" href="/static/factory.css">
 </head>
 <body>
-    <div class="factory-app">
-        <header class="factory-header glass-panel">
-            <div>
-                <div class="eyebrow">ELITE WELLNESS · OPENCLAW CONTROL</div>
-                <h1 id="heroTitle">Factory loading…</h1>
-                <p id="heroSubtitle">Live command surface for human operators and autonomous agents.</p>
-            </div>
-            <div class="header-actions">
-                <div class="live-chip"><span class="presence-dot live"></span><span id="lastSync">Syncing…</span></div>
-                <button id="createIssueBtn" class="btn btn-primary">New Work Order</button>
-                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
-            </div>
-        </header>
+  <div class="mc-shell">
+    <header class="mc-hero glass-panel">
+      <div class="hero-copy">
+        <div class="eyebrow">OPENCLAW · AUTONOMOUS SOFTWARE FACTORY</div>
+        <h1 id="heroTitle">Mission loading…</h1>
+        <p id="heroSubtitle">Orchestrating humans, agents, approvals, and outputs.</p>
+      </div>
+      <div class="hero-actions">
+        <div class="live-pill"><span class="presence-dot live"></span><span id="lastSync">syncing…</span></div>
+        <div class="live-pill subtle"><span>Operator</span><strong id="currentUser">—</strong></div>
+        <button id="createIssueBtn" class="btn btn-primary">Launch run</button>
+        <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+      </div>
+    </header>
 
-        <section class="sprint-strip glass-panel">
-            <div class="strip-block">
-                <span class="strip-label">Sprint</span>
-                <strong id="sprintLabel">Loading…</strong>
-            </div>
-            <div class="strip-block">
-                <span class="strip-label">Operator</span>
-                <strong id="currentUser">—</strong>
-            </div>
-            <div class="strip-block">
-                <span class="strip-label">Tasks</span>
-                <strong id="statTotal">0</strong>
-            </div>
-            <div class="strip-block">
-                <span class="strip-label">Running</span>
-                <strong id="statRunning">0</strong>
-            </div>
-            <div class="strip-block">
-                <span class="strip-label">Review</span>
-                <strong id="statReview">0</strong>
-            </div>
-            <div class="strip-block">
-                <span class="strip-label">Shipped</span>
-                <strong id="statDone">0</strong>
-            </div>
+    <section class="pulse-strip glass-panel">
+      <div class="pulse-card"><span>Mission</span><strong id="sprintLabel">—</strong></div>
+      <div class="pulse-card"><span>Executing</span><strong id="statRunning">0</strong></div>
+      <div class="pulse-card"><span>Needs Aaron</span><strong id="statNeedsHuman">0</strong></div>
+      <div class="pulse-card"><span>Review Ready</span><strong id="statReview">0</strong></div>
+      <div class="pulse-card"><span>Completed</span><strong id="statDone">0</strong></div>
+      <div class="pulse-card"><span>Total Runs</span><strong id="statTotal">0</strong></div>
+    </section>
+
+    <main class="mc-grid">
+      <section class="primary-column">
+        <section class="lane-panel glass-panel">
+          <div class="section-header"><div><div class="eyebrow">EXECUTION</div><h2>Running now</h2></div></div>
+          <div id="laneRunning" class="lane-list"></div>
         </section>
 
-        <main class="factory-main">
-            <section class="board-stage glass-panel">
-                <div class="section-header compact">
-                    <div>
-                        <div class="eyebrow">PIPELINE</div>
-                        <h2>Live work board</h2>
-                    </div>
-                    <div class="board-legend">
-                        <span><i class="dot human"></i>Human</span>
-                        <span><i class="dot agent"></i>Agent</span>
-                        <span><i class="dot unassigned"></i>Unassigned</span>
-                    </div>
-                </div>
-                <div id="boardColumns" class="board-columns"></div>
-            </section>
+        <section class="lane-panel glass-panel emphasis-panel">
+          <div class="section-header"><div><div class="eyebrow">HUMAN IN THE LOOP</div><h2>Needs Aaron</h2></div></div>
+          <div id="laneNeedsHuman" class="lane-list"></div>
+        </section>
 
-            <section class="side-stack">
-                <section class="operators-stage glass-panel">
-                    <div class="section-header compact">
-                        <div>
-                            <div class="eyebrow">OPERATORS</div>
-                            <h2>Humans & agents</h2>
-                        </div>
-                    </div>
-                    <div id="agentsGrid" class="agents-grid"></div>
-                </section>
+        <section class="lane-panel glass-panel">
+          <div class="section-header"><div><div class="eyebrow">NEXT UP</div><h2>Queued</h2></div></div>
+          <div id="laneQueued" class="lane-list"></div>
+        </section>
 
-                <section class="activity-stage glass-panel">
-                    <div class="section-header compact">
-                        <div>
-                            <div class="eyebrow">EVENT STREAM</div>
-                            <h2>Recent activity</h2>
-                        </div>
-                    </div>
-                    <div id="activityStream" class="activity-stream"></div>
-                </section>
-            </section>
-        </main>
+        <section class="lane-panel glass-panel">
+          <div class="section-header"><div><div class="eyebrow">SHIP / VERIFY</div><h2>Review ready</h2></div></div>
+          <div id="laneReview" class="lane-list"></div>
+        </section>
+      </section>
+
+      <aside class="secondary-column">
+        <section class="glass-panel side-panel">
+          <div class="section-header"><div><div class="eyebrow">OPERATORS</div><h2>Roster</h2></div></div>
+          <div id="agentsGrid" class="agents-grid"></div>
+        </section>
+
+        <section class="glass-panel side-panel">
+          <div class="section-header"><div><div class="eyebrow">TELEMETRY</div><h2>Recent activity</h2></div></div>
+          <div id="activityStream" class="activity-stream"></div>
+        </section>
+
+        <section class="glass-panel side-panel">
+          <div class="section-header"><div><div class="eyebrow">COMPLETIONS</div><h2>Recently shipped</h2></div></div>
+          <div id="laneCompleted" class="lane-list compact"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <aside id="detailDrawer" class="detail-drawer hidden">
+    <div class="drawer-header">
+      <div><div class="eyebrow">RUN DETAIL</div><h3 id="drawerTitle">Run</h3></div>
+      <button id="closeDrawerBtn" class="icon-btn">✕</button>
     </div>
-
-    <aside id="detailDrawer" class="detail-drawer hidden">
-        <div class="drawer-header">
-            <div>
-                <div class="eyebrow">WORK UNIT</div>
-                <h3 id="drawerTitle">Issue</h3>
-            </div>
-            <button id="closeDrawerBtn" class="icon-btn">✕</button>
-        </div>
-        <div class="drawer-meta" id="drawerMeta"></div>
-        <p id="drawerDescription" class="drawer-description"></p>
-        <div class="drawer-controls">
-            <label>Status<select id="drawerStatus"><option value="to_do">Queued</option><option value="in_progress">Running</option><option value="in_review">Review</option><option value="done">Shipped</option></select></label>
-            <label>Assigned to<select id="drawerAssignedTo"></select></label>
-        </div>
-        <div class="drawer-actions">
-            <button id="saveIssueBtn" class="btn btn-primary">Save changes</button>
-            <a id="legacyIssueLink" class="btn btn-secondary" href="#">Open raw issue detail</a>
-        </div>
-        <div class="drawer-section">
-            <div class="eyebrow">COMMENTS</div>
-            <div id="drawerComments" class="comments-list"></div>
-        </div>
-    </aside>
-
-    <div id="createIssueModal" class="modal hidden">
-        <div class="modal-card glass-panel">
-            <div class="section-header compact">
-                <div><div class="eyebrow">NEW WORK ORDER</div><h3>Create task</h3></div>
-                <button id="closeModalBtn" class="icon-btn">✕</button>
-            </div>
-            <form id="createIssueForm" class="issue-form">
-                <label>Title<input type="text" id="issueTitle" required /></label>
-                <label>Description<textarea id="issueDescription" rows="5" required></textarea></label>
-                <label>Assign to<select id="issueAssignedTo"></select></label>
-                <div class="modal-actions">
-                    <button type="button" id="cancelModalBtn" class="btn btn-secondary">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Launch task</button>
-                </div>
-            </form>
-        </div>
+    <div class="drawer-meta" id="drawerMeta"></div>
+    <p id="drawerDescription" class="drawer-description"></p>
+    <div class="drawer-controls">
+      <label>Status<select id="drawerStatus"><option value="to_do">Queued</option><option value="in_progress">Executing</option><option value="in_review">Review Ready</option><option value="done">Completed</option></select></label>
+      <label>Assigned to<select id="drawerAssignedTo"></select></label>
     </div>
+    <div class="drawer-actions">
+      <button id="saveIssueBtn" class="btn btn-primary">Commit update</button>
+      <a id="legacyIssueLink" class="btn btn-secondary" href="#">Open raw issue</a>
+    </div>
+    <div class="drawer-section">
+      <div class="eyebrow">COMMENTS / LOGS</div>
+      <div id="drawerComments" class="comments-list"></div>
+    </div>
+  </aside>
 
-    <script src="/static/factory.js"></script>
+  <div id="createIssueModal" class="modal hidden">
+    <div class="modal-card glass-panel">
+      <div class="section-header"><div><div class="eyebrow">NEW RUN</div><h3>Launch work order</h3></div><button id="closeModalBtn" class="icon-btn">✕</button></div>
+      <form id="createIssueForm" class="issue-form">
+        <label>Title<input type="text" id="issueTitle" required></label>
+        <label>Description<textarea id="issueDescription" rows="5" required></textarea></label>
+        <label>Assign to<select id="issueAssignedTo"></select></label>
+        <div class="modal-actions"><button type="button" id="cancelModalBtn" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Launch</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/factory.js"></script>
 </body>
 </html>
