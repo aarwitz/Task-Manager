@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Manager - Login</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/static/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/static/apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/LatestAppIcon.png">
+    <meta name="apple-mobile-web-app-title" content="Task Manager">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
     <div class="login-container">
@@ -17,7 +25,7 @@
                     id="username" 
                     placeholder="Enter your username" 
                     required 
-                    autocomplete="off"
+                    autocomplete="username"
                 >
                 <button type="submit">Login</button>
             </form>
@@ -47,12 +55,12 @@
                     const user = await response.json();
                     localStorage.setItem('username', username);
                     
-                    // Check if there's an active sprint
+                    // Launch into the new factory control panel by default.
                     const sprintResponse = await fetch('/api/sprints/active');
                     if (sprintResponse.ok) {
-                        window.location.href = '/static/sprint.html';
+                        window.location.href = '/static/factory.html';
                     } else {
-                        window.location.href = '/static/backlog.html';
+                        window.location.href = '/static/factory.html';
                     }
                 } else {
                     alert('Login failed. Please try again.');
