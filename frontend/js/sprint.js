@@ -76,6 +76,9 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
 
 let currentSprint = null;
 
+const sprintParams = new URLSearchParams(window.location.search);
+const requestedSprintId = sprintParams.get('sprint_id');
+
 // Get active sprint
 async function getActiveSprint() {
     try {
@@ -92,7 +95,21 @@ async function getActiveSprint() {
 
 // Load sprint and issues
 async function loadSprint() {
-    const sprint = await getActiveSprint();
+    let sprint = null;
+    if (requestedSprintId) {
+        try {
+            const response = await fetch(`/api/sprints/${requestedSprintId}`);
+            if (response.ok) {
+                sprint = await response.json();
+            }
+        } catch (error) {
+            console.error('Error fetching requested sprint:', error);
+        }
+    }
+
+    if (!sprint) {
+        sprint = await getActiveSprint();
+    }
     
     if (!sprint) {
         document.getElementById('noSprintMessage').style.display = 'block';
@@ -107,14 +124,16 @@ async function loadSprint() {
     document.getElementById('sprintBoard').style.display = 'grid';
     
     document.getElementById('sprintTitle').textContent = sprint.name;
-    document.getElementById('sprintInfo').textContent = 
-        `Started: ${new Date(sprint.started_at).toLocaleString()}`;
+    const sprintMeta = [];
+    if (sprint.started_at) sprintMeta.push(`Started: ${new Date(sprint.started_at).toLocaleString()}`);
+    if (!sprint.is_active) sprintMeta.push('Status: Planned / inactive');
+    document.getElementById('sprintInfo').textContent = sprintMeta.join(' · ');
     
-    if (sprint.is_active) {
+    if (sprint.is_active && !requestedSprintId) {
         document.getElementById('startSprintBtn').style.display = 'none';
         document.getElementById('endSprintBtn').style.display = 'block';
     } else {
-        document.getElementById('startSprintBtn').style.display = 'block';
+        document.getElementById('startSprintBtn').style.display = requestedSprintId ? 'none' : 'block';
         document.getElementById('endSprintBtn').style.display = 'none';
     }
     
@@ -177,7 +196,7 @@ function createIssueCard(issue) {
         <h4>${issue.title}</h4>
         <div class="issue-meta">
             <div class="issue-id-badge">#${issue.id}</div>
-            <span>${issue.created_by}</span>
+            <span>${issue.assigned_to || issue.created_by}</span>
         </div>
     `;
     

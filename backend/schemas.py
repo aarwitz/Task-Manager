@@ -17,12 +17,14 @@ class IssueCreate(BaseModel):
     title: str
     description: str
     created_by: str
+    assigned_to: Optional[str] = None
 
 class IssueUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
     sprint_id: Optional[int] = None
+    assigned_to: Optional[str] = None
 
 class CommentCreate(BaseModel):
     content: str
@@ -37,6 +39,14 @@ class CommentResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class IssueImageResponse(BaseModel):
+    id: int
+    filename: str
+    uploaded_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 class IssueResponse(BaseModel):
     id: int
     title: str
@@ -45,7 +55,9 @@ class IssueResponse(BaseModel):
     sprint_id: Optional[int]
     created_at: datetime
     created_by: str
+    assigned_to: Optional[str] = None
     comments: List[CommentResponse] = []
+    images: List[IssueImageResponse] = []
     
     class Config:
         from_attributes = True

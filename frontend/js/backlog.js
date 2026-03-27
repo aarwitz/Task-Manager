@@ -42,6 +42,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
     
     const title = document.getElementById('issueTitle').value;
     const description = document.getElementById('issueDescription').value;
+    const assignedTo = document.getElementById('issueAssignedTo').value || null;
     
     try {
         const response = await fetch('/api/issues', {
@@ -52,7 +53,8 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
             body: JSON.stringify({
                 title,
                 description,
-                created_by: username
+                created_by: username,
+                assigned_to: assignedTo
             })
         });
         
@@ -204,7 +206,7 @@ async function endSprint(sprintId) {
 
 // View sprint
 function viewSprint(sprintId) {
-    window.location.href = '/static/sprint.html';
+    window.location.href = `/static/sprint.html?sprint_id=${sprintId}`;
 }
 
 // Load and display backlog issues
@@ -243,6 +245,7 @@ async function loadIssues() {
                 <div class="issue-card-meta">
                     <span>Created: ${new Date(issue.created_at).toLocaleDateString()}</span>
                     <span>By: ${issue.created_by}</span>
+                    <span>Assignee: ${issue.assigned_to || "Unassigned"}</span>
                 </div>
                 <div style="margin-top: 1rem;">
                     <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); assignToActiveSprint(${issue.id})">

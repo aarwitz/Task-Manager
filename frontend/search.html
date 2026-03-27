@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - Search</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/static/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/static/apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/LatestAppIcon.png">
+    <meta name="apple-mobile-web-app-title" content="Task Manager">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-left">
+                <h2>Task Manager</h2>
+                <a href="/static/backlog.html" class="nav-link">Backlog</a>
+                <a href="/static/sprint.html" class="nav-link">Sprint</a>
+                <a href="/static/search.html" class="nav-link active">Search</a>
+            </div>
+            <div class="nav-right">
+                <span id="currentUser" class="username"></span>
+                <button id="createIssueBtn" class="btn btn-primary">+ Create Issue</button>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>Search Issues</h1>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search issues..." autocomplete="off">
+            <button id="searchBtn" class="btn btn-primary">Search</button>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-panel">
+            <div class="filters-header">
+                <h3>Filters</h3>
+                <button id="clearFiltersBtn" class="btn btn-secondary btn-sm">Clear All</button>
+            </div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="filterSearchIn">Search in</label>
+                    <select id="filterSearchIn" class="select">
+                        <option value="all">All (title + description + comments)</option>
+                        <option value="title">Title only</option>
+                        <option value="description">Description only</option>
+                        <option value="comments">Comments only</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterStatus">Status</label>
+                    <select id="filterStatus" class="select">
+                        <option value="">Any</option>
+                        <option value="to_do">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="in_review">In Review</option>
+                        <option value="done">Done</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterSprint">Sprint</label>
+                    <select id="filterSprint" class="select">
+                        <option value="">Any</option>
+                        <option value="backlog">Backlog (unassigned)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterUser">Created by</label>
+                    <select id="filterUser" class="select">
+                        <option value="">Anyone</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterAssignedTo">Assigned to</label>
+                    <select id="filterAssignedTo" class="select">
+                        <option value="">Anyone</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterDateFrom">From date</label>
+                    <input type="date" id="filterDateFrom" class="select">
+                </div>
+                <div class="filter-group">
+                    <label for="filterDateTo">To date</label>
+                    <input type="date" id="filterDateTo" class="select">
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="search-results-header">
+            <span id="resultCount"></span>
+        </div>
+        <div id="searchResults" class="issues-list"></div>
+    </div>
+
+    <!-- Create Issue Modal -->
+    <div id="createIssueModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Issue</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="createIssueForm">
+                <div class="form-group">
+                    <label for="issueTitle">Title *</label>
+                    <input type="text" id="issueTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="issueDescription">Description *</label>
+                    <textarea id="issueDescription" rows="5" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="issueAssignedTo">Assign to</label>
+                    <select id="issueAssignedTo">
+                        <option value="">Unassigned</option>
+                        <option value="Aaron">Aaron</option>
+                        <option value="Claw">Claw</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Issue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/search.js"></script>
+</body>
+</html>

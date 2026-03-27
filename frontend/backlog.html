@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Manager - Backlog</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/static/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/static/apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/LatestAppIcon.png">
+    <meta name="apple-mobile-web-app-title" content="Task Manager">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
     <nav class="navbar">
@@ -13,6 +21,7 @@
                 <h2>Task Manager</h2>
                 <a href="/static/backlog.html" class="nav-link active">Backlog</a>
                 <a href="/static/sprint.html" class="nav-link">Sprint</a>
+                <a href="/static/search.html" class="nav-link">Search</a>
             </div>
             <div class="nav-right">
                 <span id="currentUser" class="username"></span>
@@ -59,6 +68,14 @@
                 <div class="form-group">
                     <label for="issueDescription">Description *</label>
                     <textarea id="issueDescription" rows="5" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="issueAssignedTo">Assign to</label>
+                    <select id="issueAssignedTo">
+                        <option value="">Unassigned</option>
+                        <option value="Aaron">Aaron</option>
+                        <option value="Claw">Claw</option>
+                    </select>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>

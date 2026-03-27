@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Manager - Issue</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/static/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/static/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/static/apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/LatestAppIcon.png">
+    <meta name="apple-mobile-web-app-title" content="Task Manager">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
     <nav class="navbar">
@@ -13,6 +21,7 @@
                 <h2>Task Manager</h2>
                 <a href="/static/backlog.html" class="nav-link">Backlog</a>
                 <a href="/static/sprint.html" class="nav-link">Sprint</a>
+                <a href="/static/search.html" class="nav-link">Search</a>
             </div>
             <div class="nav-right">
                 <span id="currentUser" class="username"></span>
@@ -25,13 +34,21 @@
     <div class="container">
         <div class="issue-detail">
             <div class="issue-header">
-                <div>
+                <div style="flex: 1;">
                     <div class="issue-id-badge">
                         <span id="issueId"></span>
                     </div>
-                    <h1 id="issueTitle"></h1>
+                    <div class="editable-section">
+                        <h1 id="issueTitle"></h1>
+                        <input type="text" id="issueTitleEdit" class="issue-title-edit" style="display: none;">
+                        <div class="edit-controls" id="titleEditControls" style="display: none;">
+                            <button class="btn btn-primary" id="saveTitleBtn">Save</button>
+                            <button class="btn btn-secondary" id="cancelTitleBtn">Cancel</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="issue-meta">
+                    <button class="edit-btn" id="editTitleBtn">Edit Title</button>
                     <span class="status-badge" id="issueStatus"></span>
                 </div>
             </div>
@@ -45,11 +62,37 @@
                     <strong>Created by:</strong>
                     <span id="issueCreatedBy"></span>
                 </div>
+                <div class="info-item">
+                    <strong>Assigned to:</strong>
+                    <span id="issueAssignedTo"></span>
+                </div>
             </div>
 
             <div class="issue-section">
-                <h3>Description</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Description</h3>
+                    <button class="edit-btn" id="editDescriptionBtn">Edit</button>
+                </div>
                 <div id="issueDescription" class="issue-description"></div>
+                <textarea id="issueDescriptionEdit" class="issue-description-edit" style="display: none;"></textarea>
+                <div class="edit-controls" id="descriptionEditControls" style="display: none;">
+                    <button class="btn btn-primary" id="saveDescriptionBtn">Save</button>
+                    <button class="btn btn-secondary" id="cancelDescriptionBtn">Cancel</button>
+                </div>
+            </div>
+
+            <div class="issue-section">
+                <h3>Images</h3>
+                <div id="issueImages" class="issue-images"></div>
+                <div class="upload-section">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="imageUpload" accept="image/*">
+                        <label for="imageUpload" class="file-input-label">Choose Image</label>
+                    </div>
+                    <span class="file-name" id="fileName">No file chosen</span>
+                    <button class="btn btn-primary" id="uploadImageBtn" style="display: none;">Upload</button>
+                </div>
+                <div class="upload-progress" id="uploadProgress"></div>
             </div>
 
             <div class="issue-section">
@@ -84,6 +127,14 @@
                 <div class="form-group">
                     <label for="newIssueDescription">Description *</label>
                     <textarea id="newIssueDescription" rows="5" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="newIssueAssignedTo">Assign to</label>
+                    <select id="newIssueAssignedTo">
+                        <option value="">Unassigned</option>
+                        <option value="Aaron">Aaron</option>
+                        <option value="Claw">Claw</option>
+                    </select>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
