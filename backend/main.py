@@ -364,8 +364,10 @@ if os.path.exists(frontend_path):
 
 @app.get("/")
 def read_root():
-    """Serve the main page"""
-    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
+    """Serve the configured landing page for this service instance."""
+    app_home = os.getenv("APP_HOME", "legacy").strip().lower()
+    landing = "factory-login.html" if app_home == "factory" else "index.html"
+    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", landing)
     if os.path.exists(frontend_path):
         return FileResponse(frontend_path)
     return {"message": "Task Manager API is running"}

@@ -55,12 +55,12 @@
                     const user = await response.json();
                     localStorage.setItem('username', username);
                     
-                    // Launch into the new factory control panel by default.
+                    // Legacy app continues to open its original workflow.
                     const sprintResponse = await fetch('/api/sprints/active');
                     if (sprintResponse.ok) {
-                        window.location.href = '/static/factory.html';
+                        window.location.href = '/static/sprint.html';
                     } else {
-                        window.location.href = '/static/factory.html';
+                        window.location.href = '/static/backlog.html';
                     }
                 } else {
                     alert('Login failed. Please try again.');

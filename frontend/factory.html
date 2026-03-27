@@ -5,81 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenClaw Factory</title>
     <link rel="stylesheet" href="/static/factory.css">
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon-180x180.png">
-    <link rel="apple-touch-icon" sizes="167x167" href="/static/apple-touch-icon-167x167.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/static/apple-touch-icon-152x152.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="/static/apple-touch-icon-120x120.png">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/LatestAppIcon.png">
-    <meta name="apple-mobile-web-app-title" content="OpenClaw Factory">
-    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
-    <div class="factory-shell">
-        <aside class="sidebar glass-panel">
+    <div class="factory-app">
+        <header class="factory-header glass-panel">
             <div>
-                <div class="brand-block">
-                    <div class="brand-mark">OC</div>
-                    <div>
-                        <div class="eyebrow">AUTONOMOUS SOFTWARE FACTORY</div>
-                        <h1>OpenClaw Control</h1>
-                    </div>
-                </div>
-
-                <nav class="sidebar-nav">
-                    <button class="nav-pill active">Command Center</button>
-                    <a class="nav-pill" href="/static/backlog.html">Legacy Backlog</a>
-                    <a class="nav-pill" href="/static/sprint.html">Legacy Sprint</a>
-                    <a class="nav-pill" href="/static/search.html">Legacy Search</a>
-                </nav>
+                <div class="eyebrow">ELITE WELLNESS · OPENCLAW CONTROL</div>
+                <h1 id="heroTitle">Factory loading…</h1>
+                <p id="heroSubtitle">Live command surface for human operators and autonomous agents.</p>
             </div>
-
-            <div class="sidebar-footer glass-inset">
-                <div class="presence-row">
-                    <span class="presence-dot live"></span>
-                    <span>Live pipeline</span>
-                </div>
-                <div class="meta-line">Operator: <strong id="currentUser"></strong></div>
-                <div class="meta-line">View: <strong id="sprintLabel">Loading sprint…</strong></div>
-                <div class="meta-line">Last sync: <strong id="lastSync">—</strong></div>
-                <div class="sidebar-actions">
-                    <button id="createIssueBtn" class="btn btn-primary">New Work Order</button>
-                    <button id="logoutBtn" class="btn btn-secondary">Logout</button>
-                </div>
+            <div class="header-actions">
+                <div class="live-chip"><span class="presence-dot live"></span><span id="lastSync">Syncing…</span></div>
+                <button id="createIssueBtn" class="btn btn-primary">New Work Order</button>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
             </div>
-        </aside>
+        </header>
 
-        <main class="main-grid">
-            <section class="topbar glass-panel">
-                <div>
-                    <div class="eyebrow">REAL-TIME OPERATIONS</div>
-                    <h2 id="heroTitle">Factory workload synchronizing…</h2>
-                    <p id="heroSubtitle">Tracking human tasks, autonomous agents, and sprint execution in one control surface.</p>
-                </div>
-                <div class="topbar-right">
-                    <div class="signal-card glass-inset">
-                        <span class="signal-label">Refresh loop</span>
-                        <strong>5s</strong>
-                    </div>
-                    <div class="signal-card glass-inset">
-                        <span class="signal-label">Mode</span>
-                        <strong>Realtime</strong>
-                    </div>
-                </div>
-            </section>
+        <section class="sprint-strip glass-panel">
+            <div class="strip-block">
+                <span class="strip-label">Sprint</span>
+                <strong id="sprintLabel">Loading…</strong>
+            </div>
+            <div class="strip-block">
+                <span class="strip-label">Operator</span>
+                <strong id="currentUser">—</strong>
+            </div>
+            <div class="strip-block">
+                <span class="strip-label">Tasks</span>
+                <strong id="statTotal">0</strong>
+            </div>
+            <div class="strip-block">
+                <span class="strip-label">Running</span>
+                <strong id="statRunning">0</strong>
+            </div>
+            <div class="strip-block">
+                <span class="strip-label">Review</span>
+                <strong id="statReview">0</strong>
+            </div>
+            <div class="strip-block">
+                <span class="strip-label">Shipped</span>
+                <strong id="statDone">0</strong>
+            </div>
+        </section>
 
-            <section class="stats-grid">
-                <div class="stat-card glass-panel"><span>Tasks in sprint</span><strong id="statTotal">0</strong></div>
-                <div class="stat-card glass-panel"><span>Running now</span><strong id="statRunning">0</strong></div>
-                <div class="stat-card glass-panel"><span>In review</span><strong id="statReview">0</strong></div>
-                <div class="stat-card glass-panel"><span>Shipped</span><strong id="statDone">0</strong></div>
-            </section>
-
-            <section class="board-panel glass-panel">
-                <div class="section-header">
+        <main class="factory-main">
+            <section class="board-stage glass-panel">
+                <div class="section-header compact">
                     <div>
                         <div class="eyebrow">PIPELINE</div>
-                        <h3>Live work board</h3>
+                        <h2>Live work board</h2>
                     </div>
                     <div class="board-legend">
                         <span><i class="dot human"></i>Human</span>
@@ -90,24 +64,26 @@
                 <div id="boardColumns" class="board-columns"></div>
             </section>
 
-            <section class="agents-panel glass-panel">
-                <div class="section-header">
-                    <div>
-                        <div class="eyebrow">OPERATORS</div>
-                        <h3>Humans & agents</h3>
+            <section class="side-stack">
+                <section class="operators-stage glass-panel">
+                    <div class="section-header compact">
+                        <div>
+                            <div class="eyebrow">OPERATORS</div>
+                            <h2>Humans & agents</h2>
+                        </div>
                     </div>
-                </div>
-                <div id="agentsGrid" class="agents-grid"></div>
-            </section>
+                    <div id="agentsGrid" class="agents-grid"></div>
+                </section>
 
-            <section class="activity-panel glass-panel">
-                <div class="section-header">
-                    <div>
-                        <div class="eyebrow">EVENT STREAM</div>
-                        <h3>Recent factory activity</h3>
+                <section class="activity-stage glass-panel">
+                    <div class="section-header compact">
+                        <div>
+                            <div class="eyebrow">EVENT STREAM</div>
+                            <h2>Recent activity</h2>
+                        </div>
                     </div>
-                </div>
-                <div id="activityStream" class="activity-stream"></div>
+                    <div id="activityStream" class="activity-stream"></div>
+                </section>
             </section>
         </main>
     </div>
@@ -122,28 +98,14 @@
         </div>
         <div class="drawer-meta" id="drawerMeta"></div>
         <p id="drawerDescription" class="drawer-description"></p>
-
         <div class="drawer-controls">
-            <label>
-                Status
-                <select id="drawerStatus">
-                    <option value="to_do">Queued</option>
-                    <option value="in_progress">Running</option>
-                    <option value="in_review">Review</option>
-                    <option value="done">Shipped</option>
-                </select>
-            </label>
-            <label>
-                Assigned to
-                <select id="drawerAssignedTo"></select>
-            </label>
+            <label>Status<select id="drawerStatus"><option value="to_do">Queued</option><option value="in_progress">Running</option><option value="in_review">Review</option><option value="done">Shipped</option></select></label>
+            <label>Assigned to<select id="drawerAssignedTo"></select></label>
         </div>
-
         <div class="drawer-actions">
             <button id="saveIssueBtn" class="btn btn-primary">Save changes</button>
-            <a id="legacyIssueLink" class="btn btn-secondary" href="#">Open legacy detail</a>
+            <a id="legacyIssueLink" class="btn btn-secondary" href="#">Open raw issue detail</a>
         </div>
-
         <div class="drawer-section">
             <div class="eyebrow">COMMENTS</div>
             <div id="drawerComments" class="comments-list"></div>
@@ -152,26 +114,14 @@
 
     <div id="createIssueModal" class="modal hidden">
         <div class="modal-card glass-panel">
-            <div class="section-header">
-                <div>
-                    <div class="eyebrow">NEW WORK ORDER</div>
-                    <h3>Create task</h3>
-                </div>
+            <div class="section-header compact">
+                <div><div class="eyebrow">NEW WORK ORDER</div><h3>Create task</h3></div>
                 <button id="closeModalBtn" class="icon-btn">✕</button>
             </div>
             <form id="createIssueForm" class="issue-form">
-                <label>
-                    Title
-                    <input type="text" id="issueTitle" required />
-                </label>
-                <label>
-                    Description
-                    <textarea id="issueDescription" rows="5" required></textarea>
-                </label>
-                <label>
-                    Assign to
-                    <select id="issueAssignedTo"></select>
-                </label>
+                <label>Title<input type="text" id="issueTitle" required /></label>
+                <label>Description<textarea id="issueDescription" rows="5" required></textarea></label>
+                <label>Assign to<select id="issueAssignedTo"></select></label>
                 <div class="modal-actions">
                     <button type="button" id="cancelModalBtn" class="btn btn-secondary">Cancel</button>
                     <button type="submit" class="btn btn-primary">Launch task</button>
