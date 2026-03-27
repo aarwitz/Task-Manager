@@ -8,65 +8,68 @@
 </head>
 <body>
   <div class="mc-shell">
+    <div class="bg-grid"></div>
     <header class="mc-hero glass-panel">
       <div class="hero-copy">
-        <div class="eyebrow">OPENCLAW · AUTONOMOUS SOFTWARE FACTORY</div>
+        <div class="eyebrow">OPENCLAW // AUTONOMOUS SOFTWARE FACTORY</div>
         <h1 id="heroTitle">Mission loading…</h1>
-        <p id="heroSubtitle">Orchestrating humans, agents, approvals, and outputs.</p>
+        <p id="heroSubtitle">Command humans, agents, and outputs from one live control room.</p>
       </div>
       <div class="hero-actions">
-        <div class="live-pill"><span class="presence-dot live"></span><span id="lastSync">syncing…</span></div>
-        <div class="live-pill subtle"><span>Operator</span><strong id="currentUser">—</strong></div>
-        <button id="createIssueBtn" class="btn btn-primary">Launch run</button>
-        <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+        <div class="status-pill pulse"><span class="presence-dot live"></span><span id="lastSync">syncing…</span></div>
+        <div class="status-pill"><span class="pill-label">Operator</span><strong id="currentUser">—</strong></div>
+        <button id="createIssueBtn" class="btn btn-primary big">Launch run</button>
+        <button id="logoutBtn" class="btn btn-secondary">Exit</button>
       </div>
     </header>
 
-    <section class="pulse-strip glass-panel">
-      <div class="pulse-card"><span>Mission</span><strong id="sprintLabel">—</strong></div>
-      <div class="pulse-card"><span>Executing</span><strong id="statRunning">0</strong></div>
-      <div class="pulse-card"><span>Needs Aaron</span><strong id="statNeedsHuman">0</strong></div>
-      <div class="pulse-card"><span>Review Ready</span><strong id="statReview">0</strong></div>
-      <div class="pulse-card"><span>Completed</span><strong id="statDone">0</strong></div>
-      <div class="pulse-card"><span>Total Runs</span><strong id="statTotal">0</strong></div>
+    <section class="hud-strip glass-panel">
+      <div class="hud-cell primary"><span>Mission</span><strong id="sprintLabel">—</strong></div>
+      <div class="hud-cell"><span>Executing</span><strong id="statRunning">0</strong></div>
+      <div class="hud-cell alert"><span>Needs Aaron</span><strong id="statNeedsHuman">0</strong></div>
+      <div class="hud-cell"><span>Review</span><strong id="statReview">0</strong></div>
+      <div class="hud-cell success"><span>Completed</span><strong id="statDone">0</strong></div>
+      <div class="hud-cell"><span>Total Runs</span><strong id="statTotal">0</strong></div>
     </section>
 
     <main class="mc-grid">
       <section class="primary-column">
-        <section class="lane-panel glass-panel">
-          <div class="section-header"><div><div class="eyebrow">EXECUTION</div><h2>Running now</h2></div></div>
-          <div id="laneRunning" class="lane-list"></div>
-        </section>
-
-        <section class="lane-panel glass-panel emphasis-panel">
-          <div class="section-header"><div><div class="eyebrow">HUMAN IN THE LOOP</div><h2>Needs Aaron</h2></div></div>
+        <section class="lane-panel glass-panel focus-panel">
+          <div class="section-header"><div><div class="eyebrow">PRIORITY QUEUE</div><h2>Needs Aaron</h2></div></div>
           <div id="laneNeedsHuman" class="lane-list"></div>
         </section>
 
         <section class="lane-panel glass-panel">
-          <div class="section-header"><div><div class="eyebrow">NEXT UP</div><h2>Queued</h2></div></div>
-          <div id="laneQueued" class="lane-list"></div>
+          <div class="section-header"><div><div class="eyebrow">ACTIVE RUNS</div><h2>Executing now</h2></div></div>
+          <div id="laneRunning" class="lane-list"></div>
         </section>
 
-        <section class="lane-panel glass-panel">
-          <div class="section-header"><div><div class="eyebrow">SHIP / VERIFY</div><h2>Review ready</h2></div></div>
-          <div id="laneReview" class="lane-list"></div>
+        <section class="lane-row two-up">
+          <section class="lane-panel glass-panel mini-panel">
+            <div class="section-header"><div><div class="eyebrow">QUEUE</div><h2>Queued</h2></div></div>
+            <div id="laneQueued" class="lane-list compact"></div>
+          </section>
+
+          <section class="lane-panel glass-panel mini-panel">
+            <div class="section-header"><div><div class="eyebrow">OUTPUTS</div><h2>Review ready</h2></div></div>
+            <div id="laneReview" class="lane-list compact"></div>
+          </section>
         </section>
       </section>
 
       <aside class="secondary-column">
-        <section class="glass-panel side-panel">
-          <div class="section-header"><div><div class="eyebrow">OPERATORS</div><h2>Roster</h2></div></div>
+        <section class="glass-panel side-panel roster-panel">
+          <div class="section-header"><div><div class="eyebrow">CREW</div><h2>Operators</h2></div></div>
           <div id="agentsGrid" class="agents-grid"></div>
         </section>
 
-        <section class="glass-panel side-panel">
-          <div class="section-header"><div><div class="eyebrow">TELEMETRY</div><h2>Recent activity</h2></div></div>
+        <section class="glass-panel side-panel feed-panel">
+          <div class="section-header"><div><div class="eyebrow">LIVE FEED</div><h2>Factory feed</h2></div></div>
           <div id="activityStream" class="activity-stream"></div>
         </section>
 
-        <section class="glass-panel side-panel">
-          <div class="section-header"><div><div class="eyebrow">COMPLETIONS</div><h2>Recently shipped</h2></div></div>
+        <section class="glass-panel side-panel completions-panel">
+          <div class="section-header"><div><div class="eyebrow">SHIPMENTS</div><h2>Recently completed</h2></div></div>
           <div id="laneCompleted" class="lane-list compact"></div>
         </section>
       </aside>
@@ -86,10 +89,10 @@
     </div>
     <div class="drawer-actions">
       <button id="saveIssueBtn" class="btn btn-primary">Commit update</button>
-      <a id="legacyIssueLink" class="btn btn-secondary" href="#">Open raw issue</a>
+      <a id="legacyIssueLink" class="btn btn-secondary" href="#">Raw issue</a>
     </div>
     <div class="drawer-section">
-      <div class="eyebrow">COMMENTS / LOGS</div>
+      <div class="eyebrow">RUN LOG</div>
       <div id="drawerComments" class="comments-list"></div>
     </div>
   </aside>
