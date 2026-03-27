@@ -9,10 +9,17 @@ const statusMeta = {
   done: { label: 'Completed', icon: '✓' }
 };
 const els = {
-  heroTitle: document.getElementById('heroTitle'), heroSubtitle: document.getElementById('heroSubtitle'), currentUser: document.getElementById('currentUser'), lastSync: document.getElementById('lastSync'), sprintLabel: document.getElementById('sprintLabel'), statRunning: document.getElementById('statRunning'), statNeedsHuman: document.getElementById('statNeedsHuman'), statReview: document.getElementById('statReview'), statDone: document.getElementById('statDone'), statTotal: document.getElementById('statTotal'), laneRunning: document.getElementById('laneRunning'), laneNeedsHuman: document.getElementById('laneNeedsHuman'), laneQueued: document.getElementById('laneQueued'), laneReview: document.getElementById('laneReview'), laneCompleted: document.getElementById('laneCompleted'), agentsGrid: document.getElementById('agentsGrid'), activityStream: document.getElementById('activityStream'), detailDrawer: document.getElementById('detailDrawer'), drawerTitle: document.getElementById('drawerTitle'), drawerMeta: document.getElementById('drawerMeta'), drawerDescription: document.getElementById('drawerDescription'), drawerStatus: document.getElementById('drawerStatus'), drawerAssignedTo: document.getElementById('drawerAssignedTo'), drawerComments: document.getElementById('drawerComments'), legacyIssueLink: document.getElementById('legacyIssueLink'), createIssueBtn: document.getElementById('createIssueBtn'), logoutBtn: document.getElementById('logoutBtn'), closeDrawerBtn: document.getElementById('closeDrawerBtn'), saveIssueBtn: document.getElementById('saveIssueBtn'), createIssueModal: document.getElementById('createIssueModal'), closeModalBtn: document.getElementById('closeModalBtn'), cancelModalBtn: document.getElementById('cancelModalBtn'), createIssueForm: document.getElementById('createIssueForm'), issueTitle: document.getElementById('issueTitle'), issueDescription: document.getElementById('issueDescription'), issueAssignedTo: document.getElementById('issueAssignedTo')
+  heroTitle: document.getElementById('heroTitle'), heroSubtitle: document.getElementById('heroSubtitle'), currentUser: document.getElementById('currentUser'), lastSync: document.getElementById('lastSync'), sprintLabel: document.getElementById('sprintLabel'), statRunning: document.getElementById('statRunning'), statNeedsHuman: document.getElementById('statNeedsHuman'), statReview: document.getElementById('statReview'), statDone: document.getElementById('statDone'), statTotal: document.getElementById('statTotal'), laneRunning: document.getElementById('laneRunning'), laneNeedsHuman: document.getElementById('laneNeedsHuman'), laneQueued: document.getElementById('laneQueued'), laneReview: document.getElementById('laneReview'), laneCompleted: document.getElementById('laneCompleted'), agentsGrid: document.getElementById('agentsGrid'), activityStream: document.getElementById('activityStream'), detailDrawer: document.getElementById('detailDrawer'), drawerTitle: document.getElementById('drawerTitle'), drawerMeta: document.getElementById('drawerMeta'), drawerDescription: document.getElementById('drawerDescription'), drawerStatus: document.getElementById('drawerStatus'), drawerAssignedTo: document.getElementById('drawerAssignedTo'), drawerComments: document.getElementById('drawerComments'), legacyIssueLink: document.getElementById('legacyIssueLink'), createIssueBtn: document.getElementById('createIssueBtn'), logoutBtn: document.getElementById('logoutBtn'), closeDrawerBtn: document.getElementById('closeDrawerBtn'), saveIssueBtn: document.getElementById('saveIssueBtn'), createIssueModal: document.getElementById('createIssueModal'), closeModalBtn: document.getElementById('closeModalBtn'), cancelModalBtn: document.getElementById('cancelModalBtn'), createIssueForm: document.getElementById('createIssueForm'), issueTitle: document.getElementById('issueTitle'), issueDescription: document.getElementById('issueDescription'), issueAssignedTo: document.getElementById('issueAssignedTo'), toast: document.getElementById('toast')
 };
 els.currentUser.textContent = username;
 const api = (path, options={}) => fetch(path, options).then(async r => { if (!r.ok) throw new Error(`${r.status}`); const t = r.headers.get('content-type')||''; return t.includes('application/json') ? r.json() : r.text(); });
+
+function showToast(message, timeout=2200){
+  els.toast.textContent = message;
+  els.toast.classList.remove('hidden');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => els.toast.classList.add('hidden'), timeout);
+}
 function openModal(show){ els.createIssueModal.classList.toggle('hidden', !show); if (show) els.issueTitle.focus(); }
 function closeDrawer(){ state.selectedIssue = null; els.detailDrawer.classList.add('hidden'); }
 els.createIssueBtn.onclick = () => openModal(true); els.closeModalBtn.onclick = () => openModal(false); els.cancelModalBtn.onclick = () => openModal(false); els.closeDrawerBtn.onclick = closeDrawer; els.logoutBtn.onclick = () => { localStorage.removeItem('username'); window.location.href = '/'; }; window.addEventListener('click', e => { if (e.target === els.createIssueModal) openModal(false); });
@@ -28,7 +35,45 @@ function renderLane(el, issues, emphasize=false){ el.innerHTML = issues.length ?
 function renderAgents(){ const map = new Map(); state.issues.forEach(issue => { const name = issue.assigned_to || 'Unassigned'; if (!map.has(name)) map.set(name, { name, cls: actorClass(name), total: 0, running: 0, review: 0 }); const row = map.get(name); row.total++; if (issue.status === 'in_progress') row.running++; if (issue.status === 'in_review') row.review++; }); const rows = Array.from(map.values()).sort((a,b)=>(b.running-a.running)||(b.total-a.total)); els.agentsGrid.innerHTML = rows.map(row => `<article class="agent-card"><div class="agent-avatar ${row.cls}">${row.name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('')}</div><div><strong>${escapeHtml(row.name)}</strong><div class="agent-role">${row.cls === 'agent' ? 'Autonomous operator' : row.cls === 'human' ? 'Human operator' : 'Unassigned capacity'}</div></div><div class="agent-metrics"><strong>${row.running}</strong><span>${row.total} total · ${row.review} review</span></div></article>`).join(''); }
 function renderActivity(){ const recent = [...state.issues].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,8); els.activityStream.innerHTML = recent.map(issue => { const owner = issue.assigned_to || 'Unassigned'; const text = issue.status === 'done' ? 'completed a run' : issue.status === 'in_review' ? 'pushed output to review' : issue.status === 'in_progress' ? 'is executing now' : 'queued work'; return `<article class="activity-item"><div class="activity-icon">${statusMeta[issue.status].icon}</div><div class="activity-copy"><strong>${escapeHtml(issue.title)}</strong><p>${escapeHtml(owner)} ${text}</p><span>#${issue.id} · ${relTime(issue.created_at)}</span></div></article>`; }).join(''); }
 function openDrawer(issue){ state.selectedIssue = issue; els.drawerTitle.textContent = issue.title; els.drawerMeta.textContent = `#${issue.id} · created by ${issue.created_by} · ${relTime(issue.created_at)}`; els.drawerDescription.textContent = issue.description || 'No description.'; els.drawerStatus.value = issue.status; els.drawerAssignedTo.value = issue.assigned_to || ''; els.legacyIssueLink.href = `/static/issue.html?id=${issue.id}`; els.drawerComments.innerHTML = issue.comments?.length ? issue.comments.map(c => `<article class="comment-item"><strong>${escapeHtml(c.username)}</strong><p>${escapeHtml(c.content)}</p><span>${new Date(c.created_at).toLocaleString()}</span></article>`).join('') : '<div class="empty-block">No logs yet.</div>'; els.detailDrawer.classList.remove('hidden'); }
-els.saveIssueBtn.onclick = async () => { if (!state.selectedIssue) return; await api(`/api/issues/${state.selectedIssue.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: els.drawerStatus.value, assigned_to: els.drawerAssignedTo.value || null }) }); await sync(); };
-els.createIssueForm.onsubmit = async (e) => { e.preventDefault(); if (!state.sprint) return; const issue = await api('/api/issues', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title: els.issueTitle.value.trim(), description: els.issueDescription.value.trim(), created_by: username, assigned_to: els.issueAssignedTo.value || null }) }); await api(`/api/issues/${issue.id}/assign-to-sprint?sprint_id=${state.sprint.id}`, { method:'POST' }); els.createIssueForm.reset(); openModal(false); await sync(); };
+els.saveIssueBtn.onclick = async () => {
+  if (!state.selectedIssue) return;
+  const original = els.saveIssueBtn.textContent;
+  els.saveIssueBtn.disabled = true;
+  els.saveIssueBtn.textContent = 'Saving…';
+  try {
+    await api(`/api/issues/${state.selectedIssue.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: els.drawerStatus.value, assigned_to: els.drawerAssignedTo.value || null }) });
+    await sync();
+    showToast('Run updated');
+    closeDrawer();
+  } catch (e) {
+    console.error(e);
+    showToast('Update failed');
+  } finally {
+    els.saveIssueBtn.disabled = false;
+    els.saveIssueBtn.textContent = original;
+  }
+};
+els.createIssueForm.onsubmit = async (e) => {
+  e.preventDefault();
+  if (!state.sprint) return;
+  const submitBtn = els.createIssueForm.querySelector('button[type="submit"]');
+  const original = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Launching…';
+  try {
+    const issue = await api('/api/issues', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title: els.issueTitle.value.trim(), description: els.issueDescription.value.trim(), created_by: username, assigned_to: els.issueAssignedTo.value || null }) });
+    await api(`/api/issues/${issue.id}/assign-to-sprint?sprint_id=${state.sprint.id}`, { method:'POST' });
+    els.createIssueForm.reset();
+    openModal(false);
+    await sync();
+    showToast('Run launched');
+  } catch (err) {
+    console.error(err);
+    showToast('Launch failed');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = original;
+  }
+};
 async function sync(){ try { state.sprint = await resolveSprint(); if (!state.sprint) return; state.sprintId = state.sprint.id; state.issues = await api(`/api/issues?sprint_id=${state.sprint.id}`); const running = state.issues.filter(i => i.status === 'in_progress'); const review = state.issues.filter(i => i.status === 'in_review'); const done = state.issues.filter(i => i.status === 'done'); const queued = state.issues.filter(i => i.status === 'to_do' && !needsHuman(i)); const human = state.issues.filter(i => i.status !== 'done' && needsHuman(i)); els.heroTitle.textContent = state.sprint.name; els.heroSubtitle.textContent = `${running.length} active runs, ${human.length} human checkpoints, ${review.length} review-ready outputs.`; els.sprintLabel.textContent = state.sprint.name; els.statRunning.textContent = String(running.length); els.statNeedsHuman.textContent = String(human.length); els.statReview.textContent = String(review.length); els.statDone.textContent = String(done.length); els.statTotal.textContent = String(state.issues.length); els.lastSync.textContent = new Date().toLocaleTimeString(); renderLane(els.laneRunning, running); renderLane(els.laneNeedsHuman, human, true); renderLane(els.laneQueued, queued); renderLane(els.laneReview, review); renderLane(els.laneCompleted, done.slice(0,6)); renderAgents(); renderActivity(); if (state.selectedIssue) { const refreshed = state.issues.find(i => i.id === state.selectedIssue.id); if (refreshed) openDrawer(refreshed); } } catch (e) { console.error(e); els.heroTitle.textContent = 'Mission sync failed'; els.heroSubtitle.textContent = 'Unable to refresh from backend.'; } }
 bootstrap();
