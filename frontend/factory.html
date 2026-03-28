@@ -42,53 +42,30 @@
       <div id="factoryWorld" class="factory-world"></div>
     </section>
 
-    <main class="factory-grid compact-grid">
+    <section class="scene-controls glass-panel">
+      <button id="toggleHudBtn" class="hud-toggle btn btn-secondary">Show task panels</button>
+      <div class="scene-pills">
+        <span class="scene-pill"><b id="statTotal">0</b> total</span>
+        <span class="scene-pill"><b id="statRunningMirror">0</b> live builds</span>
+        <span class="scene-pill"><b id="statNeedsHumanMirror">0</b> human checkpoints</span>
+        <span class="scene-pill"><b id="statReviewMirror">0</b> in dock</span>
+      </div>
+    </section>
+
+    <main id="hudPanels" class="factory-grid compact-grid hidden">
       <section class="stations-column glass-panel subdued-panel">
-        <div class="section-header compact-head">
-          <div>
-            <div class="eyebrow">TASK STREAM</div>
-            <h2>Clickable queues</h2>
-          </div>
-        </div>
-
+        <div class="section-header compact-head"><div><div class="eyebrow">TASK STREAM</div><h2>Clickable queues</h2></div></div>
         <div class="station-grid compact-stations">
-          <section class="station-panel queue-station">
-            <div class="station-head"><h3>Queue</h3><div class="station-count" id="statTotal">0</div></div>
-            <div id="laneQueued" class="lane-list compact"></div>
-          </section>
-
-          <section class="station-panel running-station">
-            <div class="station-head"><h3>Build</h3><div class="station-count" id="statRunningMirror">0</div></div>
-            <div id="laneRunning" class="lane-list compact"></div>
-          </section>
-
-          <section class="station-panel human-station">
-            <div class="station-head"><h3>Human</h3><div class="station-count" id="statNeedsHumanMirror">0</div></div>
-            <div id="laneNeedsHuman" class="lane-list compact"></div>
-          </section>
-
-          <section class="station-panel review-station">
-            <div class="station-head"><h3>Output</h3><div class="station-count" id="statReviewMirror">0</div></div>
-            <div id="laneReview" class="lane-list compact"></div>
-          </section>
+          <section class="station-panel queue-station"><div class="station-head"><h3>Queue</h3></div><div id="laneQueued" class="lane-list compact"></div></section>
+          <section class="station-panel running-station"><div class="station-head"><h3>Build</h3></div><div id="laneRunning" class="lane-list compact"></div></section>
+          <section class="station-panel human-station"><div class="station-head"><h3>Human</h3></div><div id="laneNeedsHuman" class="lane-list compact"></div></section>
+          <section class="station-panel review-station"><div class="station-head"><h3>Output</h3></div><div id="laneReview" class="lane-list compact"></div></section>
         </div>
       </section>
-
       <aside class="right-column compact-right">
-        <section class="glass-panel side-panel roster-panel subdued-panel">
-          <div class="section-header compact-head"><div><div class="eyebrow">CREW</div><h2>Load</h2></div></div>
-          <div id="agentsGrid" class="agents-grid"></div>
-        </section>
-
-        <section class="glass-panel side-panel feed-panel subdued-panel">
-          <div class="section-header compact-head"><div><div class="eyebrow">ACTIVITY</div><h2>Movement</h2></div></div>
-          <div id="activityStream" class="activity-stream"></div>
-        </section>
-
-        <section class="glass-panel side-panel completions-panel subdued-panel">
-          <div class="section-header compact-head"><div><div class="eyebrow">DONE</div><h2>Shipments</h2></div></div>
-          <div id="laneCompleted" class="lane-list compact"></div>
-        </section>
+        <section class="glass-panel side-panel roster-panel subdued-panel"><div class="section-header compact-head"><div><div class="eyebrow">CREW</div><h2>Load</h2></div></div><div id="agentsGrid" class="agents-grid"></div></section>
+        <section class="glass-panel side-panel feed-panel subdued-panel"><div class="section-header compact-head"><div><div class="eyebrow">ACTIVITY</div><h2>Movement</h2></div></div><div id="activityStream" class="activity-stream"></div></section>
+        <section class="glass-panel side-panel completions-panel subdued-panel"><div class="section-header compact-head"><div><div class="eyebrow">DONE</div><h2>Shipments</h2></div></div><div id="laneCompleted" class="lane-list compact"></div></section>
       </aside>
     </main>
   </div>
