@@ -3,73 +3,90 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OpenClaw Mission Control</title>
+  <title>OpenClaw Factory Floor</title>
   <link rel="stylesheet" href="/static/factory.css">
 </head>
 <body>
-  <div class="mc-shell">
+  <div class="mc-shell factory-theme">
     <div class="bg-grid"></div>
-    <header class="mc-hero glass-panel">
-      <div class="hero-copy">
-        <div class="eyebrow">OPENCLAW // AUTONOMOUS SOFTWARE FACTORY</div>
-        <h1 id="heroTitle">Mission loading…</h1>
-        <p id="heroSubtitle">Command humans, agents, and outputs from one live control room.</p>
+    <div class="bg-glow bg-glow-a"></div>
+    <div class="bg-glow bg-glow-b"></div>
+
+    <header class="factory-top glass-panel">
+      <div class="top-copy">
+        <div class="eyebrow">OPENCLAW // SOFTWARE FACTORY SIM</div>
+        <h1 id="heroTitle">Booting factory…</h1>
+        <p id="heroSubtitle">A live world where Jerry, Aaron, and Taylor move work through the line.</p>
       </div>
-      <div class="hero-actions">
+      <div class="top-utility">
         <div class="status-pill pulse"><span class="presence-dot live"></span><span id="lastSync">syncing…</span></div>
-        <div class="status-pill"><span class="pill-label">Operator</span><strong id="currentUser">—</strong></div>
-        <button id="createIssueBtn" class="btn btn-primary big">Create issue</button>
-                <button id="logoutBtn" class="btn btn-secondary">Exit</button>
+        <button id="createIssueBtn" class="btn btn-primary">Create task</button>
+        <button id="logoutBtn" class="btn btn-secondary">Exit</button>
       </div>
     </header>
 
-    <section class="hud-strip glass-panel">
-      <div class="hud-cell primary"><span>Mission</span><strong id="sprintLabel">—</strong></div>
-      <div class="hud-cell"><span>Executing</span><strong id="statRunning">0</strong></div>
-      <div class="hud-cell alert"><span>Needs Aaron</span><strong id="statNeedsHuman">0</strong></div>
-      <div class="hud-cell"><span>Review</span><strong id="statReview">0</strong></div>
-      <div class="hud-cell success"><span>Completed</span><strong id="statDone">0</strong></div>
-      <div class="hud-cell"><span>Total Runs</span><strong id="statTotal">0</strong></div>
+    <section class="world-panel glass-panel">
+      <div class="world-head slim-head">
+        <div>
+          <div class="eyebrow">LIVE WORLD</div>
+          <h2 id="sprintLabel">—</h2>
+        </div>
+        <div class="world-ministats">
+          <span><b id="statRunning">0</b> running</span>
+          <span><b id="statNeedsHuman">0</b> human</span>
+          <span><b id="statReview">0</b> review</span>
+          <span><b id="statDone">0</b> done</span>
+        </div>
+      </div>
+
+      <div id="factoryWorld" class="factory-world"></div>
     </section>
 
-    <main class="mc-grid">
-      <section class="primary-column">
-        <section class="lane-panel glass-panel focus-panel">
-          <div class="section-header"><div><div class="eyebrow">PRIORITY QUEUE</div><h2>Needs Aaron</h2></div></div>
-          <div id="laneNeedsHuman" class="lane-list"></div>
-        </section>
+    <main class="factory-grid compact-grid">
+      <section class="stations-column glass-panel subdued-panel">
+        <div class="section-header compact-head">
+          <div>
+            <div class="eyebrow">TASK STREAM</div>
+            <h2>Clickable queues</h2>
+          </div>
+        </div>
 
-        <section class="lane-panel glass-panel">
-          <div class="section-header"><div><div class="eyebrow">ACTIVE RUNS</div><h2>Executing now</h2></div></div>
-          <div id="laneRunning" class="lane-list"></div>
-        </section>
-
-        <section class="lane-row two-up">
-          <section class="lane-panel glass-panel mini-panel">
-            <div class="section-header"><div><div class="eyebrow">QUEUE</div><h2>Queued</h2></div></div>
+        <div class="station-grid compact-stations">
+          <section class="station-panel queue-station">
+            <div class="station-head"><h3>Queue</h3><div class="station-count" id="statTotal">0</div></div>
             <div id="laneQueued" class="lane-list compact"></div>
           </section>
 
-          <section class="lane-panel glass-panel mini-panel">
-            <div class="section-header"><div><div class="eyebrow">OUTPUTS</div><h2>Review ready</h2></div></div>
+          <section class="station-panel running-station">
+            <div class="station-head"><h3>Build</h3><div class="station-count" id="statRunningMirror">0</div></div>
+            <div id="laneRunning" class="lane-list compact"></div>
+          </section>
+
+          <section class="station-panel human-station">
+            <div class="station-head"><h3>Human</h3><div class="station-count" id="statNeedsHumanMirror">0</div></div>
+            <div id="laneNeedsHuman" class="lane-list compact"></div>
+          </section>
+
+          <section class="station-panel review-station">
+            <div class="station-head"><h3>Output</h3><div class="station-count" id="statReviewMirror">0</div></div>
             <div id="laneReview" class="lane-list compact"></div>
           </section>
-        </section>
+        </div>
       </section>
 
-      <aside class="secondary-column">
-        <section class="glass-panel side-panel roster-panel">
-          <div class="section-header"><div><div class="eyebrow">CREW</div><h2>Operators</h2></div></div>
+      <aside class="right-column compact-right">
+        <section class="glass-panel side-panel roster-panel subdued-panel">
+          <div class="section-header compact-head"><div><div class="eyebrow">CREW</div><h2>Load</h2></div></div>
           <div id="agentsGrid" class="agents-grid"></div>
         </section>
 
-        <section class="glass-panel side-panel feed-panel">
-          <div class="section-header"><div><div class="eyebrow">LIVE FEED</div><h2>Factory feed</h2></div></div>
+        <section class="glass-panel side-panel feed-panel subdued-panel">
+          <div class="section-header compact-head"><div><div class="eyebrow">ACTIVITY</div><h2>Movement</h2></div></div>
           <div id="activityStream" class="activity-stream"></div>
         </section>
 
-        <section class="glass-panel side-panel completions-panel">
-          <div class="section-header"><div><div class="eyebrow">SHIPMENTS</div><h2>Recently completed</h2></div></div>
+        <section class="glass-panel side-panel completions-panel subdued-panel">
+          <div class="section-header compact-head"><div><div class="eyebrow">DONE</div><h2>Shipments</h2></div></div>
           <div id="laneCompleted" class="lane-list compact"></div>
         </section>
       </aside>
@@ -78,7 +95,7 @@
 
   <aside id="detailDrawer" class="detail-drawer hidden">
     <div class="drawer-header">
-      <div><div class="eyebrow">RUN DETAIL</div><h3 id="drawerTitle">Run</h3></div>
+      <div><div class="eyebrow">TASK DETAIL</div><h3 id="drawerTitle">Task</h3></div>
       <button id="closeDrawerBtn" class="icon-btn">✕</button>
     </div>
     <div class="drawer-meta" id="drawerMeta"></div>
@@ -108,7 +125,7 @@
 
   <div id="createIssueModal" class="modal hidden">
     <div class="modal-card glass-panel">
-      <div class="section-header"><div><div class="eyebrow">NEW ISSUE</div><h3>Create issue</h3></div><button id="closeModalBtn" class="icon-btn">✕</button></div>
+      <div class="section-header"><div><div class="eyebrow">NEW TASK</div><h3>Create task</h3></div><button id="closeModalBtn" class="icon-btn">✕</button></div>
       <form id="createIssueForm" class="issue-form">
         <label>Title<input type="text" id="issueTitle" required></label>
         <label>Description<textarea id="issueDescription" rows="5" required></textarea></label>
