@@ -275,20 +275,20 @@ def get_sprints(active_only: bool = False, db: Session = Depends(get_db)):
         query = query.filter(models.Sprint.is_active == True)
     return query.order_by(models.Sprint.id.desc()).all()
 
-@app.get("/api/sprints/{sprint_id}", response_model=schemas.SprintResponse)
-def get_sprint(sprint_id: int, db: Session = Depends(get_db)):
-    """Get a specific sprint by ID"""
-    sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
-    return sprint
-
 @app.get("/api/sprints/active", response_model=schemas.SprintResponse)
 def get_active_sprint(db: Session = Depends(get_db)):
     """Get the currently active sprint"""
     sprint = db.query(models.Sprint).filter(models.Sprint.is_active == True).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="No active sprint")
+    return sprint
+
+@app.get("/api/sprints/{sprint_id}", response_model=schemas.SprintResponse)
+def get_sprint(sprint_id: int, db: Session = Depends(get_db)):
+    """Get a specific sprint by ID"""
+    sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
     return sprint
 
 @app.post("/api/sprints/{sprint_id}/start")
