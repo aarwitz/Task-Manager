@@ -44,13 +44,32 @@ function zoneTasks(issues, limit=3){ return issues.slice(0, limit).map(issue => 
 function sprite(name, cls, left, top, counts){ return `<div class="operator-sprite ${name.toLowerCase()} ${cls}" style="left:${left}px;top:${top}px" data-owner="${escapeHtml(name)}"><div class="label">${escapeHtml(name)}</div><div class="pixel-person"><div class="halo"></div><div class="head"></div><div class="body"></div><div class="screen"></div><div class="tool"></div><div class="legs"></div></div><div class="load-bubbles"><span class="load-bubble">▶ ${counts.running}</span><span class="load-bubble">◎ ${counts.total}</span></div></div>`; }
 function site(issue, x, y, cls, label){ const theme = taskTheme(issue); return `<article class="job-site ${cls} ${theme.cls}" style="left:${x}px;top:${y}px" data-id="${issue.id}"><h4>${taskGlyph(issue)} ${escapeHtml(shortTitle(issue.title, 24))}</h4><p>${escapeHtml(label)} · ${escapeHtml(theme.label)}</p></article>`; }
 function groupByOwnerCounts(name){ const owned = tasksFor(name); return { total: owned.length, running: owned.filter(i => i.status === 'in_progress').length }; }
-function renderWorld(running, human, queued, review, done){
+function renderMobileWorld(running, human, queued, review, done){
+  els.factoryWorld.innerHTML = `
+    <div class="mobile-world">
+      <div class="mobile-crew-row">
+        <div class="mobile-operator agent" data-owner="Jerry">${sprite('Jerry','agent', 0, 0, groupByOwnerCounts('Jerry'))}</div>
+        <div class="mobile-operator human" data-owner="Aaron">${sprite('Aaron','human', 0, 0, groupByOwnerCounts('Aaron'))}</div>
+        <div class="mobile-operator human" data-owner="Taylor">${sprite('Taylor','human', 0, 0, groupByOwnerCounts('Taylor'))}</div>
+      </div>
+      <div class="mobile-zones">
+        <section class="mobile-zone queue-zone"><div class="mobile-zone-head"><h3>Queue Gate</h3><span>${queued.length}</span></div><div class="mobile-zone-body">${zoneTasks(queued,2)}</div></section>
+        <section class="mobile-zone build-zone"><div class="mobile-zone-head"><h3>Build Bay</h3><span>${running.length}</span></div><div class="mobile-zone-body">${zoneTasks(running,2)}</div></section>
+        <section class="mobile-zone human-zone"><div class="mobile-zone-head"><h3>Human Checkpoint</h3><span>${human.length}</span></div><div class="mobile-zone-body">${zoneTasks(human,2)}</div></section>
+        <section class="mobile-zone output-zone"><div class="mobile-zone-head"><h3>Output Dock</h3><span>${review.length + done.length}</span></div><div class="mobile-zone-body">${zoneTasks([...review, ...done],2)}</div></section>
+      </div>
+    </div>`;
+  els.factoryWorld.querySelectorAll('[data-id]').forEach(node => node.onclick = () => {
+    const issue = state.issues.find(i => i.id === Number(node.dataset.id));
+    if (issue) openDrawer(issue);
+  });
+}
+function renderDesktopWorld(running, human, queued, review, done){
   const buildVisuals = running.map((issue, idx) => site(issue, 302 + (idx%2)*138, 362 + Math.floor(idx/2)*88, 'build', `${canonOwner(issue.assigned_to)} building`));
   const humanVisuals = human.map((issue, idx) => site(issue, 640, 366 + idx*86, 'human', `${canonOwner(issue.assigned_to)} reviewing`));
   const reviewVisuals = review.map((issue, idx) => site(issue, 842, 390 + idx*78, 'review', 'output staged'));
   const doneVisuals = done.slice(0,2).map((issue, idx) => site(issue, 842, 212 + idx*78, 'done', 'shipment complete'));
   const queueVisuals = queued.slice(0,3).map((issue, idx) => site(issue, 46, 374 + idx*72, 'queue', 'awaiting routing'));
-
   els.factoryWorld.innerHTML = `
     <div class="factory-landscape">
       <div class="world-skyline">
@@ -61,59 +80,34 @@ function renderWorld(running, human, queued, review, done){
         <div class="tower" style="right:132px;height:136px"></div>
         <div class="tower" style="right:58px;height:92px"></div>
       </div>
-
       <div class="terrain-band band-1"></div>
       <div class="terrain-band band-2"></div>
       <div class="terrain-band band-3"></div>
-
       <div class="path" style="left:170px;top:286px;width:760px"><span class="packet p1"></span><span class="packet p2"></span></div>
       <div class="path" style="left:140px;top:430px;width:760px"><span class="packet p3"></span><span class="packet p4"></span></div>
       <div class="path vertical" style="left:478px;top:236px;width:8px;height:200px"><span class="packet pv1"></span></div>
       <div class="path vertical" style="left:776px;top:222px;width:8px;height:232px"><span class="packet pv2"></span></div>
-
-      <section class="zone zone-queue">
-        <h3>Queue Gate</h3>
-        <p>Incoming jobs and unslotted work.</p>
-        <div class="zone-tasks">${zoneTasks(queued)}</div>
-        <div class="zone-glow"></div>
-      </section>
-
-      <section class="zone zone-build">
-        <h3>Build Bay</h3>
-        <p>Active engineering, code, wiring, and system assembly.</p>
-        <div class="zone-tasks">${zoneTasks(running)}</div>
-        <div class="zone-glow"></div>
-      </section>
-
-      <section class="zone zone-human">
-        <h3>Human Checkpoint</h3>
-        <p>Judgment, decisions, unblockers, and approvals.</p>
-        <div class="zone-tasks">${zoneTasks(human)}</div>
-        <div class="zone-glow"></div>
-      </section>
-
-      <section class="zone zone-output">
-        <h3>Output Dock</h3>
-        <p>Review-ready work and shipped artifacts.</p>
-        <div class="zone-tasks">${zoneTasks([...review, ...done], 4)}</div>
-        <div class="zone-glow"></div>
-      </section>
-
+      <section class="zone zone-queue"><h3>Queue Gate</h3><p>Incoming jobs and unslotted work.</p><div class="zone-tasks">${zoneTasks(queued)}</div><div class="zone-glow"></div></section>
+      <section class="zone zone-build"><h3>Build Bay</h3><p>Active engineering, code, wiring, and system assembly.</p><div class="zone-tasks">${zoneTasks(running)}</div><div class="zone-glow"></div></section>
+      <section class="zone zone-human"><h3>Human Checkpoint</h3><p>Judgment, decisions, unblockers, and approvals.</p><div class="zone-tasks">${zoneTasks(human)}</div><div class="zone-glow"></div></section>
+      <section class="zone zone-output"><h3>Output Dock</h3><p>Review-ready work and shipped artifacts.</p><div class="zone-tasks">${zoneTasks([...review, ...done], 4)}</div><div class="zone-glow"></div></section>
       ${sprite('Jerry','agent', 386, 250, groupByOwnerCounts('Jerry'))}
       ${sprite('Aaron','human', 620, 282, groupByOwnerCounts('Aaron'))}
       ${sprite('Taylor','human', 734, 300, groupByOwnerCounts('Taylor'))}
-
       ${queueVisuals.join('')}
       ${buildVisuals.join('')}
       ${humanVisuals.join('')}
       ${reviewVisuals.join('')}
       ${doneVisuals.join('')}
     </div>`;
-
   els.factoryWorld.querySelectorAll('[data-id]').forEach(node => node.onclick = () => {
     const issue = state.issues.find(i => i.id === Number(node.dataset.id));
     if (issue) openDrawer(issue);
   });
+}
+function renderWorld(running, human, queued, review, done){
+  if (window.innerWidth <= 760) return renderMobileWorld(running, human, queued, review, done);
+  return renderDesktopWorld(running, human, queued, review, done);
 }
 function openDrawer(issue){ state.selectedIssue = issue; els.drawerTitle.textContent = issue.title; els.drawerMeta.textContent = `#${issue.id} · created by ${issue.created_by} · ${relTime(issue.created_at)}`; els.drawerDescription.textContent = issue.description || 'No description.'; els.drawerStatus.value = issue.status; els.drawerAssignedTo.value = issue.assigned_to || ''; els.commentInput.value = ''; els.legacyIssueLink.href = `/static/issue.html?id=${issue.id}`; els.drawerComments.innerHTML = issue.comments?.length ? issue.comments.map(c => `<article class="comment-item"><strong>${escapeHtml(c.username)}</strong><p>${escapeHtml(c.content)}</p><span>${new Date(c.created_at).toLocaleString()}</span></article>`).join('') : '<div class="empty-block">No logs yet.</div>'; els.detailDrawer.classList.remove('hidden'); }
 els.saveIssueBtn.onclick = async () => { if (!state.selectedIssue) return; const original = els.saveIssueBtn.textContent; els.saveIssueBtn.disabled = true; els.saveIssueBtn.textContent = 'Saving…'; try { await api(`/api/issues/${state.selectedIssue.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: els.drawerStatus.value, assigned_to: els.drawerAssignedTo.value || null }) }); await sync(); showToast('Task updated'); closeDrawer(); } catch (e) { console.error(e); showToast('Update failed'); } finally { els.saveIssueBtn.disabled = false; els.saveIssueBtn.textContent = original; } };
