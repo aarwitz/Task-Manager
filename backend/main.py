@@ -104,12 +104,24 @@ def search_issues(
     in_backlog: bool = False,
     db: Session = Depends(get_db),
 ):
-    """Search issues with filters across title, description, and comments"""
+    """Search issues with filters across title, description, comments, or exact issue ID."""
     query = db.query(models.Issue)
 
+    # --- search term handling ---
+    normalized_q = q.strip()
+    issue_id_query: Optional[int] = None
+    if normalized_q:
+        id_candidate = normalized_q[1:] if normalized_q.startswith("#") else normalized_q
+        if id_candidate.isdigit():
+            issue_id_query = int(id_candidate)
+
+    # --- exact issue number search ---
+    if issue_id_query is not None:
+        query = query.filter(models.Issue.id == issue_id_query)
+
     # --- text search ---
-    if q:
-        term = f"%{q}%"
+    elif normalized_q:
+        term = f"%{normalized_q}%"
         if search_in == "title":
             query = query.filter(models.Issue.title.ilike(term))
         elif search_in == "description":
