@@ -36,6 +36,7 @@ class Comment(Base):
     created_at = Column(DateTime, default=datetime.now)
     
     issue = relationship("Issue", back_populates="comments")
+    images = relationship("IssueImage", back_populates="comment")
 
 class Sprint(Base):
     __tablename__ = "sprints"
@@ -53,7 +54,11 @@ class IssueImage(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     issue_id = Column(Integer, ForeignKey("issues.id"))
+    comment_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
     filename = Column(String)
+    source_type = Column(String, default="issue")
+    uploaded_by = Column(String, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.now)
     
     issue = relationship("Issue", back_populates="images")
+    comment = relationship("Comment", back_populates="images")

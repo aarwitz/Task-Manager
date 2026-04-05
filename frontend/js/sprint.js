@@ -36,12 +36,48 @@ window.addEventListener('click', (e) => {
     }
 });
 
+const issueImagesInput = document.getElementById('issueImages');
+const issueImagesLabel = document.getElementById('issueImagesLabel');
+
+if (issueImagesInput && issueImagesLabel) {
+    issueImagesInput.addEventListener('change', () => {
+        const files = issueImagesInput.files;
+        if (!files || files.length === 0) {
+            issueImagesLabel.textContent = 'No files selected';
+            return;
+        }
+        issueImagesLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+    });
+}
+
+async function uploadIssueImages(issueId, files) {
+    if (!files || files.length === 0) {
+        return;
+    }
+
+    const uploads = Array.from(files).map((file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return fetch(`/api/issues/${issueId}/images?source_type=description&uploaded_by=${encodeURIComponent(username)}`, {
+            method: 'POST',
+            body: formData,
+        });
+    });
+
+    const results = await Promise.all(uploads);
+    const hasFailure = results.some((result) => !result.ok);
+    if (hasFailure) {
+        throw new Error('One or more image uploads failed');
+    }
+}
+
 // Create Issue Form
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const title = document.getElementById('issueTitle').value;
     const description = document.getElementById('issueDescription').value;
+    const imageFiles = issueImagesInput ? issueImagesInput.files : null;
     
     try {
         const response = await fetch('/api/issues', {
@@ -57,8 +93,13 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         });
         
         if (response.ok) {
+            const createdIssue = await response.json();
+            await uploadIssueImages(createdIssue.id, imageFiles);
             createIssueModal.classList.remove('show');
             document.getElementById('createIssueForm').reset();
+            if (issueImagesLabel) {
+                issueImagesLabel.textContent = 'No files selected';
+            }
             
             // Check if there's an active sprint, if so reload it
             const activeSprint = await getActiveSprint();

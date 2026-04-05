@@ -106,6 +106,13 @@
                         rows="3"
                         required
                     ></textarea>
+                    <div class="inline-upload-controls">
+                        <div class="file-input-wrapper">
+                            <input type="file" id="commentImageUpload" accept="image/*" multiple>
+                            <label for="commentImageUpload" class="file-input-label">Add Comment Images</label>
+                        </div>
+                        <span class="file-name" id="commentFileName">No files selected</span>
+                    </div>
                     <button type="submit" class="btn btn-primary">Submit Comment</button>
                 </form>
             </div>
@@ -127,6 +134,11 @@
                 <div class="form-group">
                     <label for="newIssueDescription">Description *</label>
                     <textarea id="newIssueDescription" rows="5" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="newIssueImages">Attach images (optional)</label>
+                    <input type="file" id="newIssueImages" accept="image/*" multiple>
+                    <small id="newIssueImagesLabel" class="file-name">No files selected</small>
                 </div>
                 <div class="form-group">
                     <label for="newIssueAssignedTo">Assign to</label>

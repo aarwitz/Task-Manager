@@ -24,6 +24,14 @@ def run_safe_migrations():
         if "assigned_to" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN assigned_to VARCHAR"))
 
+        image_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(issue_images)").fetchall()}
+        if "comment_id" not in image_columns:
+            conn.execute(sql_text("ALTER TABLE issue_images ADD COLUMN comment_id INTEGER"))
+        if "source_type" not in image_columns:
+            conn.execute(sql_text("ALTER TABLE issue_images ADD COLUMN source_type VARCHAR DEFAULT 'issue'"))
+        if "uploaded_by" not in image_columns:
+            conn.execute(sql_text("ALTER TABLE issue_images ADD COLUMN uploaded_by VARCHAR"))
+
 
 run_safe_migrations()
 
@@ -212,12 +220,35 @@ def add_comment(issue_id: int, comment: schemas.CommentCreate, db: Session = Dep
     db.refresh(db_comment)
     return db_comment
 
-@app.post("/api/issues/{issue_id}/images")
-def upload_image(issue_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+@app.post("/api/issues/{issue_id}/images", response_model=schemas.IssueImageResponse)
+def upload_image(
+    issue_id: int,
+    source_type: str = Query("issue", description="issue, description, or comment"),
+    comment_id: Optional[int] = Query(None),
+    uploaded_by: Optional[str] = Query(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
     """Upload an image for an issue"""
     issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
+
+    normalized_source = source_type.strip().lower()
+    if normalized_source not in {"issue", "description", "comment"}:
+        raise HTTPException(status_code=400, detail="Invalid source_type. Allowed: issue, description, comment")
+
+    if normalized_source == "comment":
+        if comment_id is None:
+            raise HTTPException(status_code=400, detail="comment_id is required when source_type=comment")
+        comment = db.query(models.Comment).filter(
+            models.Comment.id == comment_id,
+            models.Comment.issue_id == issue_id,
+        ).first()
+        if not comment:
+            raise HTTPException(status_code=404, detail="Comment not found for this issue")
+    else:
+        comment_id = None
     
     # Validate file type
     allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -240,13 +271,16 @@ def upload_image(issue_id: int, file: UploadFile = File(...), db: Session = Depe
     # Create database record
     db_image = models.IssueImage(
         issue_id=issue_id,
-        filename=unique_filename
+        comment_id=comment_id,
+        filename=unique_filename,
+        source_type=normalized_source,
+        uploaded_by=uploaded_by,
     )
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
     
-    return {"id": db_image.id, "filename": unique_filename, "url": f"/static/uploads/{unique_filename}"}
+    return db_image
 
 @app.delete("/api/issues/{issue_id}/images/{image_id}")
 def delete_image(issue_id: int, image_id: int, db: Session = Depends(get_db)):

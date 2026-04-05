@@ -30,19 +30,24 @@ class CommentCreate(BaseModel):
     content: str
     username: str
 
+class IssueImageResponse(BaseModel):
+    id: int
+    filename: str
+    issue_id: int
+    comment_id: Optional[int] = None
+    source_type: str
+    uploaded_by: Optional[str] = None
+    uploaded_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 class CommentResponse(BaseModel):
     id: int
     content: str
     username: str
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class IssueImageResponse(BaseModel):
-    id: int
-    filename: str
-    uploaded_at: datetime
+    images: List[IssueImageResponse] = []
     
     class Config:
         from_attributes = True

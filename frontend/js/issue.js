@@ -6,6 +6,8 @@ if (!username) {
 
 document.getElementById('currentUser').textContent = username;
 
+let currentIssue = null;
+
 // Logout functionality
 document.getElementById('logoutBtn').addEventListener('click', () => {
     localStorage.removeItem('username');
@@ -36,6 +38,102 @@ window.addEventListener('click', (e) => {
     }
 });
 
+const newIssueImagesInput = document.getElementById('newIssueImages');
+const newIssueImagesLabel = document.getElementById('newIssueImagesLabel');
+const commentImageUploadInput = document.getElementById('commentImageUpload');
+const commentFileNameLabel = document.getElementById('commentFileName');
+
+if (newIssueImagesInput && newIssueImagesLabel) {
+    newIssueImagesInput.addEventListener('change', () => {
+        const files = newIssueImagesInput.files;
+        if (!files || files.length === 0) {
+            newIssueImagesLabel.textContent = 'No files selected';
+            return;
+        }
+        newIssueImagesLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+    });
+}
+
+if (commentImageUploadInput && commentFileNameLabel) {
+    commentImageUploadInput.addEventListener('change', () => {
+        const files = commentImageUploadInput.files;
+        if (!files || files.length === 0) {
+            commentFileNameLabel.textContent = 'No files selected';
+            return;
+        }
+        commentFileNameLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+    });
+}
+
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatUploadMeta(image) {
+    const uploadedAt = new Date(image.uploaded_at).toLocaleString();
+    const source = image.source_type === 'comment'
+        ? `Comment #${image.comment_id}`
+        : image.source_type === 'description'
+            ? 'Issue Description'
+            : 'Issue Attachment';
+    const by = image.uploaded_by ? ` by ${escapeHtml(image.uploaded_by)}` : '';
+    return `Uploaded ${uploadedAt}${by} - ${source}`;
+}
+
+function renderInlineImages(images, cssClass = 'inline-image-list') {
+    if (!images || images.length === 0) {
+        return '';
+    }
+
+    return `
+        <div class="${cssClass}">
+            ${images.map((image) => `
+                <figure class="inline-image-item">
+                    <img src="/static/uploads/${encodeURIComponent(image.filename)}" alt="Attached image">
+                    <figcaption>${formatUploadMeta(image)}</figcaption>
+                </figure>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderTextWithLineBreaks(text) {
+    return escapeHtml(text).replace(/\n/g, '<br>');
+}
+
+async function uploadIssueImages(issueId, files, sourceType, commentId = null) {
+    if (!files || files.length === 0) {
+        return;
+    }
+
+    const uploads = Array.from(files).map((file) => {
+        const params = new URLSearchParams({
+            source_type: sourceType,
+            uploaded_by: username,
+        });
+        if (commentId !== null) {
+            params.set('comment_id', String(commentId));
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        return fetch(`/api/issues/${issueId}/images?${params.toString()}`, {
+            method: 'POST',
+            body: formData,
+        });
+    });
+
+    const results = await Promise.all(uploads);
+    const hasFailure = results.some((result) => !result.ok);
+    if (hasFailure) {
+        throw new Error('One or more image uploads failed');
+    }
+}
+
 // Create Issue Form
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -43,6 +141,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
     const title = document.getElementById('newIssueTitle').value;
     const description = document.getElementById('newIssueDescription').value;
     const assignedTo = document.getElementById('newIssueAssignedTo').value || null;
+    const imageFiles = newIssueImagesInput ? newIssueImagesInput.files : null;
     
     try {
         const response = await fetch('/api/issues', {
@@ -59,8 +158,13 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         });
         
         if (response.ok) {
+            const createdIssue = await response.json();
+            await uploadIssueImages(createdIssue.id, imageFiles, 'description');
             createIssueModal.classList.remove('show');
             document.getElementById('createIssueForm').reset();
+            if (newIssueImagesLabel) {
+                newIssueImagesLabel.textContent = 'No files selected';
+            }
         } else {
             alert('Failed to create issue');
         }
@@ -91,11 +195,16 @@ async function loadIssue() {
         }
         
         const issue = await response.json();
+        currentIssue = issue;
         
         // Populate issue details
         document.getElementById('issueId').textContent = `#${issue.id}`;
         document.getElementById('issueTitle').textContent = issue.title;
-        document.getElementById('issueDescription').textContent = issue.description;
+        const descriptionImages = (issue.images || []).filter((image) => image.source_type === 'description');
+        document.getElementById('issueDescription').innerHTML = `
+            <div class="issue-text">${renderTextWithLineBreaks(issue.description)}</div>
+            ${renderInlineImages(descriptionImages)}
+        `;
         document.getElementById('issueCreated').textContent = new Date(issue.created_at).toLocaleString();
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
         document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
@@ -128,10 +237,11 @@ function loadComments(comments) {
     commentsList.innerHTML = comments.map(comment => `
         <div class="comment">
             <div class="comment-header">
-                <span class="comment-author">${comment.username}</span>
+                <span class="comment-author">${escapeHtml(comment.username)}</span>
                 <span class="comment-date">${new Date(comment.created_at).toLocaleString()}</span>
             </div>
-            <div class="comment-content">${comment.content}</div>
+            <div class="comment-content">${renderTextWithLineBreaks(comment.content)}</div>
+            ${renderInlineImages(comment.images || [], 'inline-image-list comment-image-list')}
         </div>
     `).join('');
 }
@@ -141,6 +251,7 @@ document.getElementById('addCommentForm').addEventListener('submit', async (e) =
     e.preventDefault();
     
     const content = document.getElementById('commentContent').value;
+    const commentImageFiles = commentImageUploadInput ? commentImageUploadInput.files : null;
     
     try {
         const response = await fetch(`/api/issues/${issueId}/comments`, {
@@ -155,7 +266,15 @@ document.getElementById('addCommentForm').addEventListener('submit', async (e) =
         });
         
         if (response.ok) {
+            const createdComment = await response.json();
+            await uploadIssueImages(issueId, commentImageFiles, 'comment', createdComment.id);
             document.getElementById('commentContent').value = '';
+            if (commentImageUploadInput) {
+                commentImageUploadInput.value = '';
+            }
+            if (commentFileNameLabel) {
+                commentFileNameLabel.textContent = 'No files selected';
+            }
             // Reload issue to get updated comments
             loadIssue();
         } else {
@@ -181,9 +300,14 @@ function loadImages(images) {
         return;
     }
     
-    imagesContainer.innerHTML = images.map(image => `
+    const sortedImages = [...images].sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+
+    imagesContainer.innerHTML = sortedImages.map(image => `
         <div class="image-item" data-image-id="${image.id}">
-            <img src="/static/uploads/${image.filename}" alt="Issue image">
+            <img src="/static/uploads/${encodeURIComponent(image.filename)}" alt="Issue image">
+            <div class="image-meta">
+                <div class="image-meta-line">${formatUploadMeta(image)}</div>
+            </div>
             <button class="image-delete-btn" onclick="deleteImage(${image.id})">Delete</button>
         </div>
     `).join('');
@@ -255,7 +379,7 @@ document.getElementById('editDescriptionBtn').addEventListener('click', () => {
     const editBtn = document.getElementById('editDescriptionBtn');
     const controls = document.getElementById('descriptionEditControls');
     
-    descEdit.value = descDisplay.textContent;
+    descEdit.value = currentIssue ? currentIssue.description : '';
     descDisplay.style.display = 'none';
     descEdit.style.display = 'block';
     controls.style.display = 'flex';
@@ -282,7 +406,16 @@ document.getElementById('saveDescriptionBtn').addEventListener('click', async ()
         });
         
         if (response.ok) {
-            document.getElementById('issueDescription').textContent = newDescription;
+            if (currentIssue) {
+                currentIssue.description = newDescription;
+            }
+            const descriptionImages = currentIssue
+                ? (currentIssue.images || []).filter((image) => image.source_type === 'description')
+                : [];
+            document.getElementById('issueDescription').innerHTML = `
+                <div class="issue-text">${renderTextWithLineBreaks(newDescription)}</div>
+                ${renderInlineImages(descriptionImages)}
+            `;
             cancelDescriptionEdit();
         } else {
             alert('Failed to update description');
@@ -339,7 +472,7 @@ document.getElementById('uploadImageBtn').addEventListener('click', async () => 
     formData.append('file', selectedFile);
     
     try {
-        const response = await fetch(`/api/issues/${issueId}/images`, {
+        const response = await fetch(`/api/issues/${issueId}/images?source_type=issue&uploaded_by=${encodeURIComponent(username)}`, {
             method: 'POST',
             body: formData
         });
