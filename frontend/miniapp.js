@@ -46,7 +46,7 @@ function setupTelegram() {
 
 function canonOwner(name) {
   const n = (name || '').toLowerCase();
-  if (['claw', 'jerry', 'agent', 'bot'].some(x => n.includes(x))) return 'Jerry';
+  if (['jerry', 'agent', 'bot'].some(x => n.includes(x))) return 'Jerry';
   if (n.includes('aaron')) return 'Aaron';
   if (n.includes('taylor')) return 'Taylor';
   return name || 'Unassigned';

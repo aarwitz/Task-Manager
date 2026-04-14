@@ -52,6 +52,55 @@ chmod +x start.sh
 
 3. Login with any username (it will be created automatically if it doesn't exist)
 
+## Stopping and Restarting After Changes
+
+On this machine, Task Manager is currently running as a **systemd user service** named `task-manager.service`, so you will not see a terminal to press `Ctrl + C`.
+
+### Check if it is running
+
+```bash
+systemctl --user status task-manager.service
+```
+
+### If you changed the frontend
+
+For changes to HTML, CSS, or JavaScript in the `frontend/` folder, a browser refresh is usually enough because the files are served directly.
+
+- Normal refresh: `F5`
+- Hard refresh if needed: `Ctrl + Shift + R`
+
+If the browser still shows the old version, restart the service too:
+
+```bash
+systemctl --user restart task-manager.service
+```
+
+### If you changed the backend
+
+After changing Python files in `backend/`, restart the service:
+
+```bash
+systemctl --user restart task-manager.service
+```
+
+### Start and stop commands
+
+```bash
+systemctl --user stop task-manager.service
+systemctl --user start task-manager.service
+systemctl --user restart task-manager.service
+```
+
+### View logs
+
+```bash
+journalctl --user -u task-manager.service -f
+```
+
+### If you ever run it manually instead of as a service
+
+If you start the app yourself with `python main.py` or `./start.sh`, then you can stop it in that terminal with `Ctrl + C`.
+
 ## Usage
 
 ### Creating Your First Sprint
