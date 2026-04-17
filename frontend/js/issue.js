@@ -546,30 +546,60 @@ function cancelBranchEdit() {
     editBtn.style.display = 'inline-block';
 }
 
-document.getElementById('deleteIssueBtn').addEventListener('click', async () => {
-    if (!currentIssue) {
+const deleteIssueBtn = document.getElementById('deleteIssueBtn');
+let deleteConfirmTimeoutId = null;
+
+function resetDeleteButtonState() {
+    if (deleteConfirmTimeoutId) {
+        clearTimeout(deleteConfirmTimeoutId);
+        deleteConfirmTimeoutId = null;
+    }
+    deleteIssueBtn.dataset.confirming = 'false';
+    deleteIssueBtn.disabled = false;
+    deleteIssueBtn.textContent = 'Delete Issue';
+}
+
+deleteIssueBtn.addEventListener('click', async () => {
+    const targetIssueId = currentIssue?.id || Number(issueId);
+    if (!targetIssueId) {
+        alert('Issue details are still loading. Please try again in a moment.');
         return;
     }
 
-    const confirmed = confirm(`Delete issue #${currentIssue.id} permanently? This will remove its comments and images too.`);
-    if (!confirmed) {
+    if (deleteIssueBtn.dataset.confirming !== 'true') {
+        deleteIssueBtn.dataset.confirming = 'true';
+        deleteIssueBtn.textContent = 'Click Again to Confirm';
+        deleteConfirmTimeoutId = setTimeout(() => {
+            resetDeleteButtonState();
+        }, 5000);
         return;
     }
+
+    if (deleteConfirmTimeoutId) {
+        clearTimeout(deleteConfirmTimeoutId);
+        deleteConfirmTimeoutId = null;
+    }
+
+    deleteIssueBtn.disabled = true;
+    deleteIssueBtn.textContent = 'Deleting...';
 
     try {
-        const response = await fetch(`/api/issues/${issueId}`, {
+        const response = await fetch(`/api/issues/${targetIssueId}`, {
             method: 'DELETE'
         });
 
         if (response.ok) {
             window.location.href = '/static/backlog.html';
-        } else {
-            const error = await response.json().catch(() => ({}));
-            alert(error.detail || 'Failed to delete issue');
+            return;
         }
+
+        const error = await response.json().catch(() => ({}));
+        alert(error.detail || 'Failed to delete issue');
     } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
+        console.error('Error deleting issue:', error);
+        alert('An error occurred while deleting the issue');
+    } finally {
+        resetDeleteButtonState();
     }
 });
 
