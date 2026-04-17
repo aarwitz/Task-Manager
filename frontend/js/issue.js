@@ -8,6 +8,22 @@ document.getElementById('currentUser').textContent = username;
 
 let currentIssue = null;
 
+// GitHub repo config
+const GITHUB_REPO = 'aarwitz/Task-Manager';
+
+function getBranchGitHubUrl(branch) {
+    if (!branch) return null;
+    return `https://github.com/${GITHUB_REPO}/tree/${encodeURIComponent(branch)}`;
+}
+
+function renderBranchDisplay(branch) {
+    if (!branch) {
+        return 'None';
+    }
+    const url = getBranchGitHubUrl(branch);
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; border-bottom: 1px solid currentColor; cursor: pointer;">${escapeHtml(branch)}</a>`;
+}
+
 // Logout functionality
 document.getElementById('logoutBtn').addEventListener('click', () => {
     localStorage.removeItem('username');
@@ -254,7 +270,7 @@ async function loadIssue() {
         document.getElementById('issueCreated').textContent = new Date(issue.created_at).toLocaleString();
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
         document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
-        document.getElementById('issueBranch').textContent = issue.branch || 'None';
+        document.getElementById('issueBranch').innerHTML = renderBranchDisplay(issue.branch);
         
         const statusBadge = document.getElementById('issueStatus');
         statusBadge.textContent = formatStatus(issue.status);
@@ -505,7 +521,7 @@ document.getElementById('saveBranchBtn').addEventListener('click', async () => {
         if (response.ok) {
             const updatedIssue = await response.json();
             currentIssue = updatedIssue;
-            document.getElementById('issueBranch').textContent = updatedIssue.branch || 'None';
+            document.getElementById('issueBranch').innerHTML = renderBranchDisplay(updatedIssue.branch);
             cancelBranchEdit();
         } else {
             alert('Failed to update branch');
