@@ -21,6 +21,7 @@ class Issue(Base):
     created_at = Column(DateTime, default=datetime.now)
     created_by = Column(String)
     assigned_to = Column(String, nullable=True)
+    branch = Column(String, nullable=True)
     
     comments = relationship("Comment", back_populates="issue", cascade="all, delete-orphan")
     images = relationship("IssueImage", back_populates="issue", cascade="all, delete-orphan")

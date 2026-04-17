@@ -20,7 +20,8 @@ const createIssueBtn = document.getElementById('createIssueBtn');
 const closeModal = document.querySelector('#createIssueModal .close');
 const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
 
-createIssueBtn.addEventListener('click', () => {
+createIssueBtn.addEventListener('click', async () => {
+    await populateIssueSprintOptions();
     createIssueModal.classList.add('show');
 });
 
@@ -40,6 +41,7 @@ window.addEventListener('click', (e) => {
 
 const newIssueImagesInput = document.getElementById('newIssueImages');
 const newIssueImagesLabel = document.getElementById('newIssueImagesLabel');
+const newIssueSprintSelect = document.getElementById('newIssueSprintId');
 const commentImageUploadInput = document.getElementById('commentImageUpload');
 const commentFileNameLabel = document.getElementById('commentFileName');
 
@@ -63,6 +65,43 @@ if (commentImageUploadInput && commentFileNameLabel) {
         }
         commentFileNameLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
     });
+}
+
+async function populateIssueSprintOptions() {
+    if (!newIssueSprintSelect) {
+        return;
+    }
+
+    try {
+        const [sprintsResponse, activeSprintResponse] = await Promise.all([
+            fetch('/api/sprints'),
+            fetch('/api/sprints/active'),
+        ]);
+
+        if (!sprintsResponse.ok) {
+            return;
+        }
+
+        const sprints = await sprintsResponse.json();
+        const activeSprint = activeSprintResponse.ok ? await activeSprintResponse.json() : null;
+
+        const existingValue = newIssueSprintSelect.value;
+        newIssueSprintSelect.innerHTML = '<option value="">Auto (Active Sprint)</option>';
+        sprints.forEach((sprint) => {
+            const option = document.createElement('option');
+            option.value = String(sprint.id);
+            option.textContent = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
+            newIssueSprintSelect.appendChild(option);
+        });
+
+        if (existingValue && newIssueSprintSelect.querySelector(`option[value="${existingValue}"]`)) {
+            newIssueSprintSelect.value = existingValue;
+        } else if (activeSprint) {
+            newIssueSprintSelect.value = String(activeSprint.id);
+        }
+    } catch (error) {
+        console.error('Error loading sprint options:', error);
+    }
 }
 
 function escapeHtml(text) {
@@ -141,6 +180,10 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
     const title = document.getElementById('newIssueTitle').value;
     const description = document.getElementById('newIssueDescription').value;
     const assignedTo = document.getElementById('newIssueAssignedTo').value || null;
+    const sprintIdRaw = newIssueSprintSelect ? newIssueSprintSelect.value : '';
+    const sprintId = sprintIdRaw ? Number(sprintIdRaw) : null;
+    const branchInput = document.getElementById('newIssueBranch');
+    const branch = branchInput && branchInput.value.trim() ? branchInput.value.trim() : null;
     const imageFiles = newIssueImagesInput ? newIssueImagesInput.files : null;
     
     try {
@@ -153,7 +196,9 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
                 title,
                 description,
                 created_by: username,
-                assigned_to: assignedTo
+                assigned_to: assignedTo,
+                sprint_id: sprintId,
+                branch
             })
         });
         
@@ -165,6 +210,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
             if (newIssueImagesLabel) {
                 newIssueImagesLabel.textContent = 'No files selected';
             }
+            await populateIssueSprintOptions();
         } else {
             alert('Failed to create issue');
         }
@@ -208,6 +254,8 @@ async function loadIssue() {
         document.getElementById('issueCreated').textContent = new Date(issue.created_at).toLocaleString();
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
         document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
+        document.getElementById('issueBranch').textContent = issue.branch || 'None';
+        document.getElementById('issueBranchDisplay').textContent = issue.branch || 'No branch linked';
         
         const statusBadge = document.getElementById('issueStatus');
         statusBadge.textContent = formatStatus(issue.status);
@@ -427,6 +475,89 @@ document.getElementById('saveDescriptionBtn').addEventListener('click', async ()
 });
 
 document.getElementById('cancelDescriptionBtn').addEventListener('click', cancelDescriptionEdit);
+
+document.getElementById('editBranchBtn').addEventListener('click', () => {
+    const branchDisplay = document.getElementById('issueBranchDisplay');
+    const branchEdit = document.getElementById('issueBranchEdit');
+    const editBtn = document.getElementById('editBranchBtn');
+    const controls = document.getElementById('branchEditControls');
+
+    branchEdit.value = currentIssue?.branch || '';
+    branchDisplay.style.display = 'none';
+    branchEdit.style.display = 'block';
+    controls.style.display = 'flex';
+    editBtn.style.display = 'none';
+    branchEdit.focus();
+});
+
+document.getElementById('saveBranchBtn').addEventListener('click', async () => {
+    const branchEdit = document.getElementById('issueBranchEdit');
+    const newBranch = branchEdit.value.trim();
+
+    try {
+        const response = await fetch(`/api/issues/${issueId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ branch: newBranch || null })
+        });
+
+        if (response.ok) {
+            const updatedIssue = await response.json();
+            currentIssue = updatedIssue;
+            document.getElementById('issueBranch').textContent = updatedIssue.branch || 'None';
+            document.getElementById('issueBranchDisplay').textContent = updatedIssue.branch || 'No branch linked';
+            cancelBranchEdit();
+        } else {
+            alert('Failed to update branch');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred');
+    }
+});
+
+document.getElementById('cancelBranchBtn').addEventListener('click', cancelBranchEdit);
+
+function cancelBranchEdit() {
+    const branchDisplay = document.getElementById('issueBranchDisplay');
+    const branchEdit = document.getElementById('issueBranchEdit');
+    const editBtn = document.getElementById('editBranchBtn');
+    const controls = document.getElementById('branchEditControls');
+
+    branchDisplay.style.display = 'block';
+    branchEdit.style.display = 'none';
+    controls.style.display = 'none';
+    editBtn.style.display = 'inline-block';
+}
+
+document.getElementById('deleteIssueBtn').addEventListener('click', async () => {
+    if (!currentIssue) {
+        return;
+    }
+
+    const confirmed = confirm(`Delete issue #${currentIssue.id} permanently? This will remove its comments and images too.`);
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/issues/${issueId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            window.location.href = '/static/backlog.html';
+        } else {
+            const error = await response.json().catch(() => ({}));
+            alert(error.detail || 'Failed to delete issue');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred');
+    }
+});
 
 function cancelDescriptionEdit() {
     const descDisplay = document.getElementById('issueDescription');

@@ -18,7 +18,12 @@ const createIssueBtn = document.getElementById('createIssueBtn');
 const closeModal = document.querySelector('#createIssueModal .close');
 const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
 
-createIssueBtn.addEventListener('click', () => {
+const issueImagesInput = document.getElementById('issueImages');
+const issueImagesLabel = document.getElementById('issueImagesLabel');
+const issueSprintSelect = document.getElementById('issueSprintId');
+
+createIssueBtn.addEventListener('click', async () => {
+    await populateIssueSprintOptions();
     createIssueModal.classList.add('show');
 });
 
@@ -36,9 +41,6 @@ window.addEventListener('click', (e) => {
     }
 });
 
-const issueImagesInput = document.getElementById('issueImages');
-const issueImagesLabel = document.getElementById('issueImagesLabel');
-
 if (issueImagesInput && issueImagesLabel) {
     issueImagesInput.addEventListener('change', () => {
         const files = issueImagesInput.files;
@@ -48,6 +50,44 @@ if (issueImagesInput && issueImagesLabel) {
         }
         issueImagesLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
     });
+}
+
+async function populateIssueSprintOptions() {
+    if (!issueSprintSelect) {
+        return;
+    }
+
+    try {
+        const [sprintsResponse, activeSprintResponse] = await Promise.all([
+            fetch('/api/sprints'),
+            fetch('/api/sprints/active'),
+        ]);
+
+        if (!sprintsResponse.ok) {
+            return;
+        }
+
+        const sprints = await sprintsResponse.json();
+        const activeSprint = activeSprintResponse.ok ? await activeSprintResponse.json() : null;
+
+        const existingValue = issueSprintSelect.value;
+        issueSprintSelect.innerHTML = '<option value="">Auto (Active Sprint)</option>';
+
+        sprints.forEach((sprint) => {
+            const option = document.createElement('option');
+            option.value = String(sprint.id);
+            option.textContent = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
+            issueSprintSelect.appendChild(option);
+        });
+
+        if (existingValue && issueSprintSelect.querySelector(`option[value="${existingValue}"]`)) {
+            issueSprintSelect.value = existingValue;
+        } else if (activeSprint) {
+            issueSprintSelect.value = String(activeSprint.id);
+        }
+    } catch (error) {
+        console.error('Error loading sprint options:', error);
+    }
 }
 
 async function uploadIssueImages(issueId, files) {
@@ -74,12 +114,16 @@ async function uploadIssueImages(issueId, files) {
 // Create Issue Form
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const title = document.getElementById('issueTitle').value;
     const description = document.getElementById('issueDescription').value;
     const assignedTo = document.getElementById('issueAssignedTo').value || null;
+    const sprintIdRaw = issueSprintSelect ? issueSprintSelect.value : '';
+    const sprintId = sprintIdRaw ? Number(sprintIdRaw) : null;
+    const branchInput = document.getElementById('issueBranch');
+    const branch = branchInput && branchInput.value.trim() ? branchInput.value.trim() : null;
     const imageFiles = issueImagesInput ? issueImagesInput.files : null;
-    
+
     try {
         const response = await fetch('/api/issues', {
             method: 'POST',
@@ -90,10 +134,12 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
                 title,
                 description,
                 created_by: username,
-                assigned_to: assignedTo
-            })
+                assigned_to: assignedTo,
+                sprint_id: sprintId,
+                branch,
+            }),
         });
-        
+
         if (response.ok) {
             const createdIssue = await response.json();
             await uploadIssueImages(createdIssue.id, imageFiles);
@@ -102,6 +148,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
             if (issueImagesLabel) {
                 issueImagesLabel.textContent = 'No files selected';
             }
+            await populateIssueSprintOptions();
             loadIssues();
         } else {
             alert('Failed to create issue');
@@ -139,18 +186,18 @@ window.addEventListener('click', (e) => {
 // Create Sprint Form
 document.getElementById('createSprintForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const name = document.getElementById('sprintName').value;
-    
+
     try {
         const response = await fetch('/api/sprints', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ name })
+            body: JSON.stringify({ name }),
         });
-        
+
         if (response.ok) {
             createSprintModal.classList.remove('show');
             document.getElementById('createSprintForm').reset();
@@ -169,14 +216,15 @@ async function loadSprints() {
     try {
         const response = await fetch('/api/sprints');
         const sprints = await response.json();
-        
+
         const sprintsList = document.getElementById('sprintsList');
-        
+
         if (sprints.length === 0) {
             sprintsList.innerHTML = '<div class="no-data"><p>No sprints created yet. Create one to get started!</p></div>';
+            await populateIssueSprintOptions();
             return;
         }
-        
+
         sprintsList.innerHTML = sprints.map(sprint => `
             <div class="sprint-card ${sprint.is_active ? 'active' : ''}">
                 <h4>${sprint.name} ${sprint.is_active ? '(Active)' : ''}</h4>
@@ -193,6 +241,8 @@ async function loadSprints() {
                 </div>
             </div>
         `).join('');
+
+        await populateIssueSprintOptions();
     } catch (error) {
         console.error('Error loading sprints:', error);
     }
@@ -203,12 +253,12 @@ async function startSprint(sprintId) {
     if (!confirm('Start this sprint? This will end any currently active sprint.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/sprints/${sprintId}/start`, {
-            method: 'POST'
+            method: 'POST',
         });
-        
+
         if (response.ok) {
             loadSprints();
             alert('Sprint started!');
@@ -226,12 +276,12 @@ async function endSprint(sprintId) {
     if (!confirm('End this sprint? All issues will be moved back to the backlog.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/sprints/${sprintId}/end`, {
-            method: 'POST'
+            method: 'POST',
         });
-        
+
         if (response.ok) {
             loadSprints();
             loadIssues();
@@ -255,25 +305,25 @@ async function loadIssues() {
     try {
         const response = await fetch('/api/issues?in_backlog=true');
         const issues = await response.json();
-        
+
         const issuesList = document.getElementById('issuesList');
-        
+
         if (issues.length === 0) {
             issuesList.innerHTML = '<div class="no-data"><h3>No issues in backlog</h3><p>Create an issue to get started!</p></div>';
             return;
         }
-        
+
         // Sort issues based on selected option
         const sortBy = document.getElementById('sortBy').value;
         let sortedIssues = [...issues];
-        
+
         if (sortBy === 'status') {
             const statusOrder = { to_do: 0, in_progress: 1, in_review: 2, done: 3 };
             sortedIssues.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
         } else {
             sortedIssues.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         }
-        
+
         issuesList.innerHTML = sortedIssues.map(issue => `
             <div class="issue-card" onclick="viewIssue(${issue.id})">
                 <div class="issue-card-header">
@@ -286,7 +336,7 @@ async function loadIssues() {
                 <div class="issue-card-meta">
                     <span>Created: ${new Date(issue.created_at).toLocaleDateString()}</span>
                     <span>By: ${issue.created_by}</span>
-                    <span>Assignee: ${issue.assigned_to || "Unassigned"}</span>
+                    <span>Assignee: ${issue.assigned_to || 'Unassigned'}</span>
                 </div>
                 <div style="margin-top: 1rem;">
                     <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); assignToActiveSprint(${issue.id})">
@@ -305,18 +355,18 @@ async function assignToActiveSprint(issueId) {
     try {
         // Get active sprint
         const sprintResponse = await fetch('/api/sprints/active');
-        
+
         if (!sprintResponse.ok) {
             alert('No active sprint. Please start a sprint first.');
             return;
         }
-        
+
         const activeSprint = await sprintResponse.json();
-        
+
         const response = await fetch(`/api/issues/${issueId}/assign-to-sprint?sprint_id=${activeSprint.id}`, {
-            method: 'POST'
+            method: 'POST',
         });
-        
+
         if (response.ok) {
             loadIssues();
             alert('Issue assigned to sprint!');

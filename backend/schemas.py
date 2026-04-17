@@ -18,6 +18,8 @@ class IssueCreate(BaseModel):
     description: str
     created_by: str
     assigned_to: Optional[str] = None
+    sprint_id: Optional[int] = None
+    branch: Optional[str] = None
 
 class IssueUpdate(BaseModel):
     title: Optional[str] = None
@@ -25,6 +27,7 @@ class IssueUpdate(BaseModel):
     status: Optional[str] = None
     sprint_id: Optional[int] = None
     assigned_to: Optional[str] = None
+    branch: Optional[str] = None
 
 class CommentCreate(BaseModel):
     content: str
@@ -61,6 +64,7 @@ class IssueResponse(BaseModel):
     created_at: datetime
     created_by: str
     assigned_to: Optional[str] = None
+    branch: Optional[str] = None
     comments: List[CommentResponse] = []
     images: List[IssueImageResponse] = []
     

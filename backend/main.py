@@ -23,6 +23,8 @@ def run_safe_migrations():
         columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(issues)").fetchall()}
         if "assigned_to" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN assigned_to VARCHAR"))
+        if "branch" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN branch VARCHAR"))
 
         image_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(issue_images)").fetchall()}
         if "comment_id" not in image_columns:
@@ -75,11 +77,27 @@ def list_users(db: Session = Depends(get_db)):
 @app.post("/api/issues", response_model=schemas.IssueResponse, status_code=status.HTTP_201_CREATED)
 def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
     """Create a new issue"""
+    target_sprint_id = issue.sprint_id
+    if target_sprint_id is None:
+        active_sprint = db.query(models.Sprint).filter(models.Sprint.is_active == True).first()
+        if active_sprint:
+            target_sprint_id = active_sprint.id
+    else:
+        sprint = db.query(models.Sprint).filter(models.Sprint.id == target_sprint_id).first()
+        if not sprint:
+            raise HTTPException(status_code=404, detail="Sprint not found")
+
+    normalized_branch = issue.branch.strip() if issue.branch else None
+    if normalized_branch == "":
+        normalized_branch = None
+
     db_issue = models.Issue(
         title=issue.title,
         description=issue.description,
         created_by=issue.created_by,
         assigned_to=issue.assigned_to,
+        sprint_id=target_sprint_id,
+        branch=normalized_branch,
         status="to_do"
     )
     db.add(db_issue)
@@ -197,11 +215,32 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
     
     update_data = issue_update.dict(exclude_unset=True)
     for field, value in update_data.items():
+        if field == "branch":
+            value = value.strip() if value else None
+            if value == "":
+                value = None
         setattr(db_issue, field, value)
     
     db.commit()
     db.refresh(db_issue)
     return db_issue
+
+@app.delete("/api/issues/{issue_id}")
+def delete_issue(issue_id: int, db: Session = Depends(get_db)):
+    """Delete an issue and its related records"""
+    issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    uploads_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "uploads")
+    for image in issue.images:
+        file_path = os.path.join(uploads_dir, image.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    db.delete(issue)
+    db.commit()
+    return {"message": "Issue deleted successfully"}
 
 @app.post("/api/issues/{issue_id}/comments", response_model=schemas.CommentResponse)
 def add_comment(issue_id: int, comment: schemas.CommentCreate, db: Session = Depends(get_db)):

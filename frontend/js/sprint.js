@@ -17,8 +17,10 @@ const createIssueModal = document.getElementById('createIssueModal');
 const createIssueBtn = document.getElementById('createIssueBtn');
 const closeModal = document.querySelector('#createIssueModal .close');
 const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
+const issueSprintSelect = document.getElementById('issueSprintId');
 
-createIssueBtn.addEventListener('click', () => {
+createIssueBtn.addEventListener('click', async () => {
+    await populateIssueSprintOptions();
     createIssueModal.classList.add('show');
 });
 
@@ -50,6 +52,46 @@ if (issueImagesInput && issueImagesLabel) {
     });
 }
 
+async function populateIssueSprintOptions() {
+    if (!issueSprintSelect) {
+        return;
+    }
+
+    try {
+        const [sprintsResponse, activeSprintResponse] = await Promise.all([
+            fetch('/api/sprints'),
+            fetch('/api/sprints/active'),
+        ]);
+
+        if (!sprintsResponse.ok) {
+            return;
+        }
+
+        const sprints = await sprintsResponse.json();
+        const activeSprint = activeSprintResponse.ok ? await activeSprintResponse.json() : null;
+
+        const existingValue = issueSprintSelect.value;
+        issueSprintSelect.innerHTML = '<option value="">Auto (Active Sprint)</option>';
+
+        sprints.forEach((sprint) => {
+            const option = document.createElement('option');
+            option.value = String(sprint.id);
+            option.textContent = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
+            issueSprintSelect.appendChild(option);
+        });
+
+        if (existingValue && issueSprintSelect.querySelector(`option[value="${existingValue}"]`)) {
+            issueSprintSelect.value = existingValue;
+        } else if (currentSprint) {
+            issueSprintSelect.value = String(currentSprint.id);
+        } else if (activeSprint) {
+            issueSprintSelect.value = String(activeSprint.id);
+        }
+    } catch (error) {
+        console.error('Error loading sprint options:', error);
+    }
+}
+
 async function uploadIssueImages(issueId, files) {
     if (!files || files.length === 0) {
         return;
@@ -77,6 +119,11 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
     
     const title = document.getElementById('issueTitle').value;
     const description = document.getElementById('issueDescription').value;
+    const assignedTo = document.getElementById('issueAssignedTo').value || null;
+    const sprintIdRaw = issueSprintSelect ? issueSprintSelect.value : '';
+    const sprintId = sprintIdRaw ? Number(sprintIdRaw) : null;
+    const branchInput = document.getElementById('issueBranch');
+    const branch = branchInput && branchInput.value.trim() ? branchInput.value.trim() : null;
     const imageFiles = issueImagesInput ? issueImagesInput.files : null;
     
     try {
@@ -88,7 +135,10 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
             body: JSON.stringify({
                 title,
                 description,
-                created_by: username
+                created_by: username,
+                assigned_to: assignedTo,
+                sprint_id: sprintId,
+                branch
             })
         });
         
@@ -100,6 +150,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
             if (issueImagesLabel) {
                 issueImagesLabel.textContent = 'No files selected';
             }
+            await populateIssueSprintOptions();
             
             // Check if there's an active sprint, if so reload it
             const activeSprint = await getActiveSprint();
@@ -161,6 +212,7 @@ async function loadSprint() {
     }
     
     currentSprint = sprint;
+    await populateIssueSprintOptions();
     document.getElementById('noSprintMessage').style.display = 'none';
     document.getElementById('sprintBoard').style.display = 'grid';
     

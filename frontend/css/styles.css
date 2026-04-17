@@ -176,6 +176,11 @@ body {
     transform: translateY(-1px);
 }
 
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
 /* Container */
 .container {
     max-width: 1400px;
@@ -474,11 +479,17 @@ body {
     padding: 1rem;
     background: var(--background);
     border-radius: 6px;
+    flex-wrap: wrap;
 }
 
 .info-item {
     display: flex;
     gap: 0.5rem;
+    align-items: center;
+}
+
+.branch-info-item {
+    flex-wrap: wrap;
 }
 
 .issue-section {
@@ -902,6 +913,15 @@ body {
     font-family: inherit;
     min-height: 150px;
     resize: vertical;
+}
+
+.issue-branch-edit {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 2px solid var(--primary-color);
+    border-radius: 4px;
+    font-family: inherit;
 }
 
 /* Issue Images */

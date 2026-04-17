@@ -104,6 +104,24 @@
                     <input type="file" id="issueImages" accept="image/*" multiple>
                     <small id="issueImagesLabel" class="file-name">No files selected</small>
                 </div>
+                <div class="form-group">
+                    <label for="issueAssignedTo">Assign to</label>
+                    <select id="issueAssignedTo">
+                        <option value="">Unassigned</option>
+                        <option value="Aaron">Aaron</option>
+                        <option value="Claw">Claw</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="issueSprintId">Assign to sprint</label>
+                    <select id="issueSprintId">
+                        <option value="">Auto (Active Sprint)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="issueBranch">Branch</label>
+                    <input type="text" id="issueBranch" placeholder="e.g. feature/intake-form">
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create Issue</button>
