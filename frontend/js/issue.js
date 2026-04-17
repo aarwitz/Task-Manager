@@ -255,7 +255,6 @@ async function loadIssue() {
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
         document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
         document.getElementById('issueBranch').textContent = issue.branch || 'None';
-        document.getElementById('issueBranchDisplay').textContent = issue.branch || 'No branch linked';
         
         const statusBadge = document.getElementById('issueStatus');
         statusBadge.textContent = formatStatus(issue.status);
@@ -477,7 +476,7 @@ document.getElementById('saveDescriptionBtn').addEventListener('click', async ()
 document.getElementById('cancelDescriptionBtn').addEventListener('click', cancelDescriptionEdit);
 
 document.getElementById('editBranchBtn').addEventListener('click', () => {
-    const branchDisplay = document.getElementById('issueBranchDisplay');
+    const branchDisplay = document.getElementById('issueBranch');
     const branchEdit = document.getElementById('issueBranchEdit');
     const editBtn = document.getElementById('editBranchBtn');
     const controls = document.getElementById('branchEditControls');
@@ -507,7 +506,6 @@ document.getElementById('saveBranchBtn').addEventListener('click', async () => {
             const updatedIssue = await response.json();
             currentIssue = updatedIssue;
             document.getElementById('issueBranch').textContent = updatedIssue.branch || 'None';
-            document.getElementById('issueBranchDisplay').textContent = updatedIssue.branch || 'No branch linked';
             cancelBranchEdit();
         } else {
             alert('Failed to update branch');
@@ -521,7 +519,7 @@ document.getElementById('saveBranchBtn').addEventListener('click', async () => {
 document.getElementById('cancelBranchBtn').addEventListener('click', cancelBranchEdit);
 
 function cancelBranchEdit() {
-    const branchDisplay = document.getElementById('issueBranchDisplay');
+    const branchDisplay = document.getElementById('issueBranch');
     const branchEdit = document.getElementById('issueBranchEdit');
     const editBtn = document.getElementById('editBranchBtn');
     const controls = document.getElementById('branchEditControls');

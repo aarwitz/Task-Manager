@@ -70,7 +70,12 @@
                 <div class="info-item branch-info-item">
                     <strong>Branch:</strong>
                     <span id="issueBranch"></span>
+                    <input type="text" id="issueBranchEdit" class="issue-branch-edit" style="display: none;" placeholder="e.g. issue-85-language-coming-soon or leave blank">
                     <button class="edit-btn" id="editBranchBtn">Edit</button>
+                    <div class="edit-controls" id="branchEditControls" style="display: none;">
+                        <button class="btn btn-primary" id="saveBranchBtn">Save</button>
+                        <button class="btn btn-secondary" id="cancelBranchBtn">Cancel</button>
+                    </div>
                 </div>
             </div>
 
@@ -84,18 +89,6 @@
                 <div class="edit-controls" id="descriptionEditControls" style="display: none;">
                     <button class="btn btn-primary" id="saveDescriptionBtn">Save</button>
                     <button class="btn btn-secondary" id="cancelDescriptionBtn">Cancel</button>
-                </div>
-            </div>
-
-            <div class="issue-section">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3>Branch</h3>
-                </div>
-                <div id="issueBranchDisplay" class="issue-description"></div>
-                <input type="text" id="issueBranchEdit" class="issue-branch-edit" style="display: none;" placeholder="e.g. issue-85-language-coming-soon or leave blank">
-                <div class="edit-controls" id="branchEditControls" style="display: none;">
-                    <button class="btn btn-primary" id="saveBranchBtn">Save</button>
-                    <button class="btn btn-secondary" id="cancelBranchBtn">Cancel</button>
                 </div>
             </div>
 
