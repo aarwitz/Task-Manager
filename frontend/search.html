@@ -65,6 +65,7 @@
                         <option value="to_do">To Do</option>
                         <option value="in_progress">In Progress</option>
                         <option value="in_review">In Review</option>
+                        <option value="blocked">Blocked</option>
                         <option value="done">Done</option>
                     </select>
                 </div>
@@ -86,6 +87,34 @@
                     <select id="filterAssignedTo" class="select">
                         <option value="">Anyone</option>
                     </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterPriority">Priority</label>
+                    <select id="filterPriority" class="select">
+                        <option value="">Any</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterMinPoints">Min points</label>
+                    <input type="number" id="filterMinPoints" class="select" min="1">
+                </div>
+                <div class="filter-group">
+                    <label for="filterMaxPoints">Max points</label>
+                    <input type="number" id="filterMaxPoints" class="select" min="1">
+                </div>
+                <div class="filter-group">
+                    <label for="filterStaleDays">Stale at least (days)</label>
+                    <input type="number" id="filterStaleDays" class="select" min="1" placeholder="e.g. 3">
+                </div>
+                <div class="filter-group checkbox-filter-group">
+                    <label><input type="checkbox" id="filterBlockedOnly"> Blocked only</label>
+                </div>
+                <div class="filter-group checkbox-filter-group">
+                    <label><input type="checkbox" id="filterNeedsReview"> Needs review only</label>
                 </div>
                 <div class="filter-group">
                     <label for="filterDateFrom">From date</label>
@@ -122,13 +151,39 @@
                     <textarea id="issueDescription" rows="5" required></textarea>
                 </div>
                 <div class="form-group">
-                    <label for="issueAssignedTo">Assign to</label>
-                    <select id="issueAssignedTo">
-                        <option value="">Unassigned</option>
-                        <option value="Aaron">Aaron</option>
-                        <option value="Taylor">Taylor</option>
-                        <option value="Jerry">Jerry</option>
-                    </select>
+                    <label for="issueAcceptanceCriteria">Acceptance Criteria</label>
+                    <textarea id="issueAcceptanceCriteria" rows="4"></textarea>
+                </div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label for="issueAssignedTo">Assign to</label>
+                        <select id="issueAssignedTo">
+                            <option value="">Unassigned</option>
+                            <option value="Dwight">Dwight</option>
+                            <option value="Jerry">Jerry</option>
+                            <option value="Resi">Resi</option>
+                            <option value="Druck">Druck</option>
+                            <option value="Aaron">Aaron</option>
+                            <option value="Taylor">Taylor</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="issueStoryPoints">Story Points</label>
+                        <input type="number" id="issueStoryPoints" min="1" max="21">
+                    </div>
+                    <div class="form-group">
+                        <label for="issuePriority">Priority</label>
+                        <select id="issuePriority">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="issueBlockedReason">Blocked Reason</label>
+                    <input type="text" id="issueBlockedReason" placeholder="Optional blocker or dependency">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
@@ -138,6 +193,7 @@
         </div>
     </div>
 
+    <script src="/static/js/tm_shared.js"></script>
     <script src="/static/js/search.js"></script>
 </body>
 </html>

@@ -26,7 +26,16 @@
                     placeholder="Enter your username" 
                     required 
                     autocomplete="username"
+                    list="approvedUsers"
                 >
+                <datalist id="approvedUsers">
+                    <option value="Aaron"></option>
+                    <option value="Taylor"></option>
+                    <option value="Jerry"></option>
+                    <option value="Dwight"></option>
+                    <option value="Resi"></option>
+                    <option value="Druck"></option>
+                </datalist>
                 <button type="submit">Login</button>
             </form>
         </div>
@@ -36,9 +45,15 @@
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('username').value.trim();
+            const allowedUsers = ['Aaron', 'Taylor', 'Jerry', 'Dwight', 'Resi', 'Druck'];
             
             if (!username) {
                 alert('Please enter a username');
+                return;
+            }
+
+            if (!allowedUsers.includes(username)) {
+                alert('Allowed Task Manager users are Aaron, Taylor, Jerry, Dwight, Resi, and Druck.');
                 return;
             }
 
@@ -53,7 +68,7 @@
 
                 if (response.ok) {
                     const user = await response.json();
-                    localStorage.setItem('username', username);
+                    localStorage.setItem('username', user.username);
                     
                     // Legacy app continues to open its original workflow.
                     const sprintResponse = await fetch('/api/sprints/active');

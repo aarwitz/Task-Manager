@@ -1,22 +1,23 @@
-// Check if user is logged in
 const username = localStorage.getItem('username');
 if (!username) {
     window.location.href = '/static/index.html';
 }
 
 document.getElementById('currentUser').textContent = username;
+const { fetchJson, fetchSprints, renderIssueCard, findDuplicateCandidates } = window.TM_SHARED;
+let searchTimeout = null;
+let searchSprints = [];
+let searchSprintMap = new Map();
 
-// Logout
-document.getElementById('logoutBtn').addEventListener('click', () => {
-    localStorage.removeItem('username');
-    window.location.href = '/static/index.html';
-});
-
-// Create Issue Modal
 const createIssueModal = document.getElementById('createIssueModal');
 const createIssueBtn = document.getElementById('createIssueBtn');
 const closeModal = document.querySelector('#createIssueModal .close');
 const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('username');
+    window.location.href = '/static/index.html';
+});
 
 createIssueBtn.addEventListener('click', () => createIssueModal.classList.add('show'));
 closeModal.addEventListener('click', () => createIssueModal.classList.remove('show'));
@@ -27,35 +28,36 @@ window.addEventListener('click', (e) => {
 
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const title = document.getElementById('issueTitle').value;
-    const description = document.getElementById('issueDescription').value;
-    const assignedTo = document.getElementById('issueAssignedTo').value || null;
+    const payload = {
+        title: document.getElementById('issueTitle').value,
+        description: document.getElementById('issueDescription').value,
+        created_by: username,
+        assigned_to: document.getElementById('issueAssignedTo').value || null,
+        priority: document.getElementById('issuePriority')?.value || 'medium',
+        acceptance_criteria: document.getElementById('issueAcceptanceCriteria')?.value.trim() || null,
+        story_points: document.getElementById('issueStoryPoints')?.value ? Number(document.getElementById('issueStoryPoints').value) : null,
+        blocked_reason: document.getElementById('issueBlockedReason')?.value.trim() || null
+    };
     try {
-        const response = await fetch('/api/issues', {
+        await fetchJson('/api/issues', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, created_by: username, assigned_to: assignedTo })
+            body: JSON.stringify(payload)
         });
-        if (response.ok) {
-            createIssueModal.classList.remove('show');
-            document.getElementById('createIssueForm').reset();
-            doSearch();
-        } else {
-            alert('Failed to create issue');
-        }
+        createIssueModal.classList.remove('show');
+        document.getElementById('createIssueForm').reset();
+        doSearch();
     } catch (error) {
         console.error('Error:', error);
-        alert('An error occurred');
+        alert(error.message || 'An error occurred');
     }
 });
 
-// ——— Populate filter dropdowns ———
-
 async function populateFilters() {
-    // Sprints
     try {
-        const resp = await fetch('/api/sprints');
-        const sprints = await resp.json();
+        const { sprints, sprintMap } = await fetchSprints();
+        searchSprints = sprints;
+        searchSprintMap = sprintMap;
         const sprintSelect = document.getElementById('filterSprint');
         sprints.forEach(s => {
             const opt = document.createElement('option');
@@ -67,10 +69,8 @@ async function populateFilters() {
         console.error('Failed to load sprints', e);
     }
 
-    // Users
     try {
-        const resp = await fetch('/api/users');
-        const users = await resp.json();
+        const users = await fetchJson('/api/users');
         const userSelect = document.getElementById('filterUser');
         const assignedSelect = document.getElementById('filterAssignedTo');
         users.forEach(u => {
@@ -78,7 +78,6 @@ async function populateFilters() {
             opt.value = u.username;
             opt.textContent = u.username;
             userSelect.appendChild(opt);
-
             const opt2 = document.createElement('option');
             opt2.value = u.username;
             opt2.textContent = u.username;
@@ -89,10 +88,6 @@ async function populateFilters() {
     }
 }
 
-// ——— Search ———
-
-let searchTimeout = null;
-
 async function doSearch() {
     const q = document.getElementById('searchInput').value.trim();
     const searchIn = document.getElementById('filterSearchIn').value;
@@ -102,24 +97,32 @@ async function doSearch() {
     const assignedTo = document.getElementById('filterAssignedTo').value;
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
+    const priority = document.getElementById('filterPriority').value;
+    const minPoints = document.getElementById('filterMinPoints').value;
+    const maxPoints = document.getElementById('filterMaxPoints').value;
+    const staleDays = document.getElementById('filterStaleDays').value;
+    const blockedOnly = document.getElementById('filterBlockedOnly').checked;
+    const needsReview = document.getElementById('filterNeedsReview').checked;
 
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (searchIn !== 'all') params.set('search_in', searchIn);
     if (status) params.set('status', status);
-    if (sprintVal === 'backlog') {
-        params.set('in_backlog', 'true');
-    } else if (sprintVal) {
-        params.set('sprint_id', sprintVal);
-    }
+    if (sprintVal === 'backlog') params.set('in_backlog', 'true');
+    else if (sprintVal) params.set('sprint_id', sprintVal);
     if (createdBy) params.set('created_by', createdBy);
     if (assignedTo) params.set('assigned_to', assignedTo);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
+    if (priority) params.set('priority', priority);
+    if (minPoints) params.set('min_story_points', minPoints);
+    if (maxPoints) params.set('max_story_points', maxPoints);
+    if (staleDays) params.set('stale_days', staleDays);
+    if (blockedOnly) params.set('blocked_only', 'true');
+    if (needsReview) params.set('needs_review', 'true');
 
     try {
-        const resp = await fetch(`/api/issues/search?${params.toString()}`);
-        const issues = await resp.json();
+        const issues = await fetchJson(`/api/issues/search?${params.toString()}`);
         renderResults(issues, q);
     } catch (e) {
         console.error('Search failed', e);
@@ -129,123 +132,37 @@ async function doSearch() {
 function renderResults(issues, query) {
     const container = document.getElementById('searchResults');
     const countEl = document.getElementById('resultCount');
-
     if (issues.length === 0) {
         countEl.textContent = 'No results found';
         container.innerHTML = '<div class="no-data"><h3>No matching issues</h3><p>Try adjusting your search or filters.</p></div>';
         return;
     }
-
     countEl.textContent = `${issues.length} result${issues.length !== 1 ? 's' : ''}`;
-
-    container.innerHTML = issues.map(issue => {
-        // Highlight matching text
-        const title = highlightMatch(escapeHtml(issue.title), query);
-        const descSnippet = getSnippet(issue.description, query);
-        const commentMatch = getCommentMatch(issue.comments, query);
-
-        return `
-            <div class="issue-card" onclick="viewIssue(${issue.id})">
-                <div class="issue-card-header">
-                    <div>
-                        <div class="issue-id-badge">#${issue.id}</div>
-                        <div class="issue-card-title">${title}</div>
-                    </div>
-                    <span class="status-badge ${issue.status}">${formatStatus(issue.status)}</span>
-                </div>
-                ${descSnippet ? `<div class="search-snippet">${descSnippet}</div>` : ''}
-                ${commentMatch ? `<div class="search-snippet comment-match"><strong>Comment:</strong> ${commentMatch}</div>` : ''}
-                <div class="issue-card-meta">
-                    <span>Created: ${new Date(issue.created_at).toLocaleDateString()}</span>
-                    <span>By: ${issue.created_by}</span>
-                    <span>Assigned: ${issue.assigned_to || 'Unassigned'}</span>
-                    <span>${issue.sprint_id ? 'In Sprint' : 'Backlog'}</span>
-                    ${issue.comments.length ? `<span>${issue.comments.length} comment${issue.comments.length !== 1 ? 's' : ''}</span>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function highlightMatch(text, query) {
-    if (!query) return text;
-    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
-}
-
-function getSnippet(description, query) {
-    if (!description) return '';
-    const safe = escapeHtml(description);
-    if (!query) {
-        return safe.length > 150 ? safe.substring(0, 150) + '...' : safe;
-    }
-    const idx = description.toLowerCase().indexOf(query.toLowerCase());
-    if (idx === -1) {
-        return safe.length > 150 ? safe.substring(0, 150) + '...' : safe;
-    }
-    const start = Math.max(0, idx - 60);
-    const end = Math.min(description.length, idx + query.length + 60);
-    let snippet = (start > 0 ? '...' : '') +
-                  escapeHtml(description.substring(start, end)) +
-                  (end < description.length ? '...' : '');
-    return highlightMatch(snippet, query);
-}
-
-function getCommentMatch(comments, query) {
-    if (!query || !comments || comments.length === 0) return '';
-    for (const c of comments) {
-        const idx = c.content.toLowerCase().indexOf(query.toLowerCase());
-        if (idx !== -1) {
-            const start = Math.max(0, idx - 40);
-            const end = Math.min(c.content.length, idx + query.length + 40);
-            let snippet = (start > 0 ? '...' : '') +
-                          escapeHtml(c.content.substring(start, end)) +
-                          (end < c.content.length ? '...' : '');
-            return highlightMatch(snippet, query);
-        }
-    }
-    return '';
-}
-
-function formatStatus(status) {
-    return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const duplicateMap = findDuplicateCandidates(issues);
+    container.innerHTML = issues.map(issue => renderIssueCard(issue, { sprints: searchSprints, sprintMap: searchSprintMap, duplicateMap, viewHandler: 'viewIssue' })).join('');
 }
 
 function viewIssue(issueId) {
     window.location.href = `/static/issue.html?id=${issueId}`;
 }
+window.viewIssue = viewIssue;
 
-// ——— Event listeners ———
-
-// Live search on typing (debounced 300ms)
 document.getElementById('searchInput').addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(doSearch, 300);
 });
-
-// Enter key
 document.getElementById('searchInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         clearTimeout(searchTimeout);
         doSearch();
     }
 });
-
-// Search button
 document.getElementById('searchBtn').addEventListener('click', doSearch);
-
-// Filters trigger immediate search
-['filterSearchIn', 'filterStatus', 'filterSprint', 'filterUser', 'filterAssignedTo', 'filterDateFrom', 'filterDateTo'].forEach(id => {
-    document.getElementById(id).addEventListener('change', doSearch);
+['filterSearchIn', 'filterStatus', 'filterSprint', 'filterUser', 'filterAssignedTo', 'filterDateFrom', 'filterDateTo', 'filterPriority', 'filterMinPoints', 'filterMaxPoints', 'filterStaleDays', 'filterBlockedOnly', 'filterNeedsReview'].forEach(id => {
+    const element = document.getElementById(id);
+    const eventName = element?.type === 'checkbox' ? 'change' : 'change';
+    element?.addEventListener(eventName, doSearch);
 });
-
-// Clear filters
 document.getElementById('clearFiltersBtn').addEventListener('click', () => {
     document.getElementById('searchInput').value = '';
     document.getElementById('filterSearchIn').value = 'all';
@@ -255,9 +172,13 @@ document.getElementById('clearFiltersBtn').addEventListener('click', () => {
     document.getElementById('filterAssignedTo').value = '';
     document.getElementById('filterDateFrom').value = '';
     document.getElementById('filterDateTo').value = '';
+    document.getElementById('filterPriority').value = '';
+    document.getElementById('filterMinPoints').value = '';
+    document.getElementById('filterMaxPoints').value = '';
+    document.getElementById('filterStaleDays').value = '';
+    document.getElementById('filterBlockedOnly').checked = false;
+    document.getElementById('filterNeedsReview').checked = false;
     doSearch();
 });
 
-// ——— Init ———
-populateFilters();
-doSearch(); // show all issues initially
+populateFilters().then(doSearch);

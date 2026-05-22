@@ -369,10 +369,15 @@ body {
     color: #006644;
 }
 
+.status-badge.blocked {
+    background: #FFEBE6;
+    color: #BF2600;
+}
+
 /* Sprint Board */
 .sprint-board {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 1rem;
     margin-top: 2rem;
 }
@@ -488,6 +493,73 @@ body {
     align-items: center;
 }
 
+.issue-select-item {
+    flex-wrap: wrap;
+}
+
+.issue-inline-select {
+    min-width: 180px;
+}
+
+.inline-save-status {
+    min-width: 52px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.inline-save-status.error {
+    color: var(--danger-color);
+}
+
+.planning-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.planning-item {
+    background: var(--background);
+    border-radius: 6px;
+    padding: 0.9rem;
+}
+
+.planning-item-wide {
+    grid-column: 1 / -1;
+}
+
+.planning-text {
+    margin-top: 0.4rem;
+    line-height: 1.6;
+}
+
+.muted-text {
+    color: var(--text-secondary);
+}
+
+.activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.activity-item {
+    padding: 0.85rem 1rem;
+    background: var(--background);
+    border-radius: 6px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.activity-line {
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.activity-time {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    margin-top: 0.3rem;
+}
+
 .branch-info-item {
     flex-wrap: wrap;
 }
@@ -503,6 +575,13 @@ body {
 .issue-section h3 {
     margin-bottom: 1rem;
     color: var(--text-primary);
+}
+
+.section-header-inline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
 }
 
 .issue-description {
@@ -662,17 +741,29 @@ body {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
     width: 100%;
     padding: 0.75rem;
     border: 2px solid var(--border-color);
     border-radius: 4px;
     font-size: 1rem;
     font-family: inherit;
+    background: white;
+}
+
+.form-row {
+    display: grid;
+    gap: 1rem;
+}
+
+.form-row-3 {
+    grid-template-columns: repeat(3, 1fr);
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
     outline: none;
     border-color: var(--primary-color);
 }
@@ -862,6 +953,18 @@ body {
     .filters-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.checkbox-filter-group {
+    display: flex;
+    align-items: end;
+}
+
+.checkbox-filter-group label {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    font-weight: 600;
 }
 /* Issue Edit Functionality */
 .editable-section {
@@ -1064,4 +1167,94 @@ body {
     margin-top: 0.5rem;
     color: var(--text-secondary);
     font-size: 0.85rem;
+}
+
+.issue-card-rich {
+    cursor: pointer;
+}
+
+.issue-card-description {
+    color: var(--text-primary);
+    margin: 0.75rem 0;
+}
+
+.issue-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.issue-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: var(--background);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    border: 1px solid var(--border-color);
+}
+
+.issue-pill.muted {
+    opacity: 0.85;
+}
+
+.issue-pill.blocked,
+.priority-critical {
+    background: #FFEBE6;
+    color: #BF2600;
+}
+
+.issue-pill.review,
+.priority-high {
+    background: #FFF0B3;
+    color: #172B4D;
+}
+
+.priority-medium {
+    background: #DEEBFF;
+    color: #0052CC;
+}
+
+.priority-low {
+    background: #E3FCEF;
+    color: #006644;
+}
+
+.issue-pill.duplicate {
+    background: #F3F0FF;
+    color: #5E35B1;
+}
+
+.inline-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+.inline-edit-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.issue-inline-control {
+    min-width: 0;
+}
+
+.issue-card-footer {
+    justify-content: space-between;
+    margin-top: 0.9rem;
+}
+
+@media (max-width: 900px) {
+    .form-row-3,
+    .inline-edit-grid,
+    .sprint-board {
+        grid-template-columns: 1fr;
+    }
 }

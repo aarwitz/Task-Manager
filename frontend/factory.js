@@ -21,8 +21,13 @@ els.createIssueBtn.onclick = () => openModal(true); els.closeModalBtn.onclick = 
 async function bootstrap(){ await loadUsers(); await sync(); state.timer = setInterval(sync, 5000); window.addEventListener('resize', () => render()); }
 async function loadUsers(){ state.users = await api('/api/users'); const opts = ['<option value="">Unassigned</option>'].concat(state.users.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)}</option>`)); els.issueAssignedTo.innerHTML = opts.join(''); els.drawerAssignedTo.innerHTML = opts.join(''); }
 async function resolveSprint(){ if (state.sprintId) { try { return await api(`/api/sprints/${state.sprintId}`); } catch {} } try { return await api('/api/sprints/active'); } catch { const all = await api('/api/sprints'); return all.find(s => s.is_active) || all[0] || null; } }
-function needsHuman(issue){ const owner = (issue.assigned_to || '').toLowerCase(); return owner.includes('aaron') || owner.includes('taylor') || owner.includes('human'); }
-function canonOwner(name){ const n = (name || '').toLowerCase(); if (['jerry','agent','bot'].some(x => n.includes(x))) return 'Jerry'; if (n.includes('aaron')) return 'Aaron'; if (n.includes('taylor')) return 'Taylor'; return name || 'Unassigned'; }
+const HUMAN_TASK_USERS = new Set(['Aaron', 'Taylor']);
+function needsHuman(issue){ return HUMAN_TASK_USERS.has(canonOwner(issue.assigned_to)); }
+function canonOwner(name){
+  const normalized = (name || '').trim();
+  const aliasMap = { Claw: 'Jerry', claw: 'Jerry', aaron: 'Aaron', taylor: 'Taylor' };
+  return aliasMap[normalized] || normalized || 'Unassigned';
+}
 function relTime(v){ const d = Date.now() - new Date(v).getTime(); const m = Math.round(d/60000); if (m < 1) return 'just now'; if (m < 60) return `${m}m ago`; const h = Math.round(m/60); if (h < 24) return `${h}h ago`; return `${Math.round(h/24)}d ago`; }
 function escapeHtml(text){ const div = document.createElement('div'); div.textContent = text ?? ''; return div.innerHTML; }
 function shortTitle(text, n=30){ const t = text || ''; return t.length > n ? t.slice(0,n-1) + '…' : t; }

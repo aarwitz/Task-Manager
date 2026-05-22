@@ -1,302 +1,225 @@
-// Check if user is logged in
 const username = localStorage.getItem('username');
 if (!username) {
     window.location.href = '/static/index.html';
 }
 
 document.getElementById('currentUser').textContent = username;
-
+const { escapeHtml, formatStatus, formatPriority, fetchJson, buildSprintSelectOptions, fetchSprints } = window.TM_SHARED;
 let currentIssue = null;
-
-// GitHub repo config
+let issueSprints = [];
 const GITHUB_REPO = 'aarwitz/Task-Manager';
-
-function getBranchGitHubUrl(branch) {
-    if (!branch) return null;
-    return `https://github.com/${GITHUB_REPO}/tree/${encodeURIComponent(branch)}`;
-}
-
-function renderBranchDisplay(branch) {
-    if (!branch) {
-        return 'None';
-    }
-    const url = getBranchGitHubUrl(branch);
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; border-bottom: 1px solid currentColor; cursor: pointer;">${escapeHtml(branch)}</a>`;
-}
-
-// Logout functionality
-document.getElementById('logoutBtn').addEventListener('click', () => {
-    localStorage.removeItem('username');
-    window.location.href = '/static/index.html';
-});
-
-// Create Issue Modal
-const createIssueModal = document.getElementById('createIssueModal');
-const createIssueBtn = document.getElementById('createIssueBtn');
-const closeModal = document.querySelector('#createIssueModal .close');
-const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
-
-createIssueBtn.addEventListener('click', async () => {
-    await populateIssueSprintOptions();
-    createIssueModal.classList.add('show');
-});
-
-closeModal.addEventListener('click', () => {
-    createIssueModal.classList.remove('show');
-});
-
-cancelBtn.addEventListener('click', () => {
-    createIssueModal.classList.remove('show');
-});
-
-window.addEventListener('click', (e) => {
-    if (e.target === createIssueModal) {
-        createIssueModal.classList.remove('show');
-    }
-});
-
-const newIssueImagesInput = document.getElementById('newIssueImages');
-const newIssueImagesLabel = document.getElementById('newIssueImagesLabel');
-const newIssueSprintSelect = document.getElementById('newIssueSprintId');
-const commentImageUploadInput = document.getElementById('commentImageUpload');
-const commentFileNameLabel = document.getElementById('commentFileName');
-
-if (newIssueImagesInput && newIssueImagesLabel) {
-    newIssueImagesInput.addEventListener('change', () => {
-        const files = newIssueImagesInput.files;
-        if (!files || files.length === 0) {
-            newIssueImagesLabel.textContent = 'No files selected';
-            return;
-        }
-        newIssueImagesLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
-    });
-}
-
-if (commentImageUploadInput && commentFileNameLabel) {
-    commentImageUploadInput.addEventListener('change', () => {
-        const files = commentImageUploadInput.files;
-        if (!files || files.length === 0) {
-            commentFileNameLabel.textContent = 'No files selected';
-            return;
-        }
-        commentFileNameLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
-    });
-}
-
-async function populateIssueSprintOptions() {
-    if (!newIssueSprintSelect) {
-        return;
-    }
-
-    try {
-        const [sprintsResponse, activeSprintResponse] = await Promise.all([
-            fetch('/api/sprints'),
-            fetch('/api/sprints/active'),
-        ]);
-
-        if (!sprintsResponse.ok) {
-            return;
-        }
-
-        const sprints = await sprintsResponse.json();
-        const activeSprint = activeSprintResponse.ok ? await activeSprintResponse.json() : null;
-
-        const existingValue = newIssueSprintSelect.value;
-        newIssueSprintSelect.innerHTML = '<option value="">Auto (Active Sprint)</option>';
-        sprints.forEach((sprint) => {
-            const option = document.createElement('option');
-            option.value = String(sprint.id);
-            option.textContent = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
-            newIssueSprintSelect.appendChild(option);
-        });
-
-        if (existingValue && newIssueSprintSelect.querySelector(`option[value="${existingValue}"]`)) {
-            newIssueSprintSelect.value = existingValue;
-        } else if (activeSprint) {
-            newIssueSprintSelect.value = String(activeSprint.id);
-        }
-    } catch (error) {
-        console.error('Error loading sprint options:', error);
-    }
-}
-
-function escapeHtml(text) {
-    return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-function formatUploadMeta(image) {
-    const uploadedAt = new Date(image.uploaded_at).toLocaleString();
-    const source = image.source_type === 'comment'
-        ? `Comment #${image.comment_id}`
-        : image.source_type === 'description'
-            ? 'Issue Description'
-            : 'Issue Attachment';
-    const by = image.uploaded_by ? ` by ${escapeHtml(image.uploaded_by)}` : '';
-    return `Uploaded ${uploadedAt}${by} - ${source}`;
-}
-
-function renderInlineImages(images, cssClass = 'inline-image-list') {
-    if (!images || images.length === 0) {
-        return '';
-    }
-
-    return `
-        <div class="${cssClass}">
-            ${images.map((image) => `
-                <figure class="inline-image-item">
-                    <img src="/static/uploads/${encodeURIComponent(image.filename)}" alt="Attached image">
-                    <figcaption>${formatUploadMeta(image)}</figcaption>
-                </figure>
-            `).join('')}
-        </div>
-    `;
-}
-
-function renderTextWithLineBreaks(text) {
-    return escapeHtml(text).replace(/\n/g, '<br>');
-}
-
-async function uploadIssueImages(issueId, files, sourceType, commentId = null) {
-    if (!files || files.length === 0) {
-        return;
-    }
-
-    const uploads = Array.from(files).map((file) => {
-        const params = new URLSearchParams({
-            source_type: sourceType,
-            uploaded_by: username,
-        });
-        if (commentId !== null) {
-            params.set('comment_id', String(commentId));
-        }
-        const formData = new FormData();
-        formData.append('file', file);
-        return fetch(`/api/issues/${issueId}/images?${params.toString()}`, {
-            method: 'POST',
-            body: formData,
-        });
-    });
-
-    const results = await Promise.all(uploads);
-    const hasFailure = results.some((result) => !result.ok);
-    if (hasFailure) {
-        throw new Error('One or more image uploads failed');
-    }
-}
-
-// Create Issue Form
-document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const title = document.getElementById('newIssueTitle').value;
-    const description = document.getElementById('newIssueDescription').value;
-    const assignedTo = document.getElementById('newIssueAssignedTo').value || null;
-    const sprintIdRaw = newIssueSprintSelect ? newIssueSprintSelect.value : '';
-    const sprintId = sprintIdRaw ? Number(sprintIdRaw) : null;
-    const branchInput = document.getElementById('newIssueBranch');
-    const branch = branchInput && branchInput.value.trim() ? branchInput.value.trim() : null;
-    const imageFiles = newIssueImagesInput ? newIssueImagesInput.files : null;
-    
-    try {
-        const response = await fetch('/api/issues', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                title,
-                description,
-                created_by: username,
-                assigned_to: assignedTo,
-                sprint_id: sprintId,
-                branch
-            })
-        });
-        
-        if (response.ok) {
-            const createdIssue = await response.json();
-            await uploadIssueImages(createdIssue.id, imageFiles, 'description');
-            createIssueModal.classList.remove('show');
-            document.getElementById('createIssueForm').reset();
-            if (newIssueImagesLabel) {
-                newIssueImagesLabel.textContent = 'No files selected';
-            }
-            await populateIssueSprintOptions();
-        } else {
-            alert('Failed to create issue');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
-    }
-});
-
-// Get issue ID from URL
 const urlParams = new URLSearchParams(window.location.search);
 const issueId = urlParams.get('id');
-
 if (!issueId) {
     alert('No issue specified');
     window.location.href = '/static/backlog.html';
 }
 
-// Load issue details
+function getBranchGitHubUrl(branch) {
+    if (!branch) return null;
+    return `https://github.com/${GITHUB_REPO}/tree/${encodeURIComponent(branch)}`;
+}
+function renderBranchDisplay(branch) {
+    if (!branch) return 'None';
+    const url = getBranchGitHubUrl(branch);
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; border-bottom: 1px solid currentColor; cursor: pointer;">${escapeHtml(branch)}</a>`;
+}
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('username');
+    window.location.href = '/static/index.html';
+});
+
+const createIssueModal = document.getElementById('createIssueModal');
+const createIssueBtn = document.getElementById('createIssueBtn');
+const closeModal = document.querySelector('#createIssueModal .close');
+const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
+const newIssueImagesInput = document.getElementById('newIssueImages');
+const newIssueImagesLabel = document.getElementById('newIssueImagesLabel');
+const newIssueSprintSelect = document.getElementById('newIssueSprintId');
+const issueStatusSelect = document.getElementById('issueStatusSelect');
+const issueSprintSelect = document.getElementById('issueSprintSelect');
+const issueStatusSaving = document.getElementById('issueStatusSaving');
+const issueSprintSaving = document.getElementById('issueSprintSaving');
+const commentImageUploadInput = document.getElementById('commentImageUpload');
+const commentFileNameLabel = document.getElementById('commentFileName');
+
+createIssueBtn.addEventListener('click', async () => {
+    await populateIssueSprintOptions();
+    createIssueModal.classList.add('show');
+});
+closeModal.addEventListener('click', () => createIssueModal.classList.remove('show'));
+cancelBtn.addEventListener('click', () => createIssueModal.classList.remove('show'));
+window.addEventListener('click', (e) => {
+    if (e.target === createIssueModal) createIssueModal.classList.remove('show');
+});
+
+if (newIssueImagesInput && newIssueImagesLabel) {
+    newIssueImagesInput.addEventListener('change', () => {
+        const files = newIssueImagesInput.files;
+        newIssueImagesLabel.textContent = !files || files.length === 0 ? 'No files selected' : `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+    });
+}
+if (commentImageUploadInput && commentFileNameLabel) {
+    commentImageUploadInput.addEventListener('change', () => {
+        const files = commentImageUploadInput.files;
+        commentFileNameLabel.textContent = !files || files.length === 0 ? 'No files selected' : `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+    });
+}
+
+function setInlineSavingStatus(element, message = '', isError = false) {
+    element.textContent = message;
+    element.classList.toggle('error', Boolean(isError));
+}
+
+function renderTextWithLineBreaks(text) {
+    return escapeHtml(text || '').replace(/\n/g, '<br>');
+}
+
+function formatUploadMeta(image) {
+    const uploadedAt = new Date(image.uploaded_at).toLocaleString();
+    const source = image.source_type === 'comment' ? `Comment #${image.comment_id}` : image.source_type === 'description' ? 'Issue Description' : 'Issue Attachment';
+    const by = image.uploaded_by ? ` by ${escapeHtml(image.uploaded_by)}` : '';
+    return `Uploaded ${uploadedAt}${by} · ${source}`;
+}
+
+function renderInlineImages(images, cssClass = 'inline-image-list') {
+    if (!images || images.length === 0) return '';
+    return `<div class="${cssClass}">${images.map((image) => `
+        <figure class="inline-image-item">
+            <img src="/static/uploads/${encodeURIComponent(image.filename)}" alt="Attached image">
+            <figcaption>${formatUploadMeta(image)}</figcaption>
+        </figure>`).join('')}</div>`;
+}
+
+function renderActivity(events = []) {
+    const activityEl = document.getElementById('issueActivity');
+    if (!events.length) {
+        activityEl.innerHTML = '<div class="no-data"><p>No activity yet.</p></div>';
+        return;
+    }
+    activityEl.innerHTML = events.map((event) => {
+        const actor = event.actor ? `<strong>${escapeHtml(event.actor)}</strong> ` : '';
+        const timestamp = new Date(event.created_at).toLocaleString();
+        let detail = '';
+        if (event.event_type === 'created') detail = 'created this issue';
+        else if (event.event_type === 'comment_added') detail = `added a comment${event.new_value ? `: ${escapeHtml(event.new_value)}` : ''}`;
+        else if (event.field_name) detail = `changed ${escapeHtml(event.field_name.replace(/_/g, ' '))} from <em>${escapeHtml(event.old_value || 'empty')}</em> to <em>${escapeHtml(event.new_value || 'empty')}</em>`;
+        else detail = escapeHtml(event.event_type);
+        return `<div class="activity-item"><div class="activity-line">${actor}${detail}</div><div class="activity-time">${timestamp}</div></div>`;
+    }).join('');
+}
+
+function renderPlanning(issue) {
+    document.getElementById('issuePriority').textContent = formatPriority(issue.priority || 'medium');
+    document.getElementById('issueStoryPoints').textContent = issue.story_points != null ? String(issue.story_points) : 'None';
+    document.getElementById('issueBlockedReason').textContent = issue.blocked_reason || 'None';
+    document.getElementById('issueAcceptanceCriteria').innerHTML = issue.acceptance_criteria ? renderTextWithLineBreaks(issue.acceptance_criteria) : '<span class="muted-text">None</span>';
+}
+
+async function populateIssueSprintOptions() {
+    const { sprints, activeSprint } = await fetchSprints().then(async ({ sprints, sprintMap }) => ({ sprints, activeSprint: await fetch('/api/sprints/active').then(r => r.ok ? r.json() : null) }));
+    issueSprints = sprints;
+    newIssueSprintSelect.innerHTML = buildSprintSelectOptions(sprints, activeSprint?.id ?? null, false, true);
+    if (activeSprint) newIssueSprintSelect.value = String(activeSprint.id);
+}
+
+async function populateStorySprintSelect(selectedSprintId = null) {
+    const { sprints } = await fetchSprints();
+    issueSprints = sprints;
+    issueSprintSelect.innerHTML = buildSprintSelectOptions(sprints, selectedSprintId, true, false);
+    issueSprintSelect.value = selectedSprintId == null ? '' : String(selectedSprintId);
+}
+
+async function patchIssue(fields) {
+    return fetchJson(`/api/issues/${issueId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fields, updated_by: username })
+    });
+}
+
+async function uploadIssueImages(issueId, files, sourceType, commentId = null) {
+    if (!files || files.length === 0) return;
+    const uploads = Array.from(files).map((file) => {
+        const params = new URLSearchParams({ source_type: sourceType, uploaded_by: username });
+        if (commentId !== null) params.set('comment_id', String(commentId));
+        const formData = new FormData();
+        formData.append('file', file);
+        return fetch(`/api/issues/${issueId}/images?${params.toString()}`, { method: 'POST', body: formData });
+    });
+    const results = await Promise.all(uploads);
+    if (results.some((result) => !result.ok)) throw new Error('One or more image uploads failed');
+}
+
+document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        title: document.getElementById('newIssueTitle').value,
+        description: document.getElementById('newIssueDescription').value,
+        created_by: username,
+        assigned_to: document.getElementById('newIssueAssignedTo').value || null,
+        sprint_id: newIssueSprintSelect.value ? Number(newIssueSprintSelect.value) : null,
+        branch: document.getElementById('newIssueBranch').value.trim() || null,
+        acceptance_criteria: document.getElementById('newIssueAcceptanceCriteria').value.trim() || null,
+        story_points: document.getElementById('newIssueStoryPoints').value ? Number(document.getElementById('newIssueStoryPoints').value) : null,
+        priority: document.getElementById('newIssuePriority').value,
+        blocked_reason: document.getElementById('newIssueBlockedReason').value.trim() || null
+    };
+    try {
+        const createdIssue = await fetchJson('/api/issues', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        await uploadIssueImages(createdIssue.id, newIssueImagesInput?.files, 'description');
+        createIssueModal.classList.remove('show');
+        document.getElementById('createIssueForm').reset();
+        newIssueImagesLabel.textContent = 'No files selected';
+        window.location.href = `/static/issue.html?id=${createdIssue.id}`;
+    } catch (error) {
+        console.error('Error:', error);
+        alert(error.message || 'An error occurred');
+    }
+});
+
 async function loadIssue() {
     try {
-        const response = await fetch(`/api/issues/${issueId}`);
-        
-        if (!response.ok) {
-            alert('Issue not found');
-            window.location.href = '/static/backlog.html';
-            return;
-        }
-        
-        const issue = await response.json();
+        const issue = await fetchJson(`/api/issues/${issueId}`);
         currentIssue = issue;
-        
-        // Populate issue details
         document.getElementById('issueId').textContent = `#${issue.id}`;
         document.getElementById('issueTitle').textContent = issue.title;
         const descriptionImages = (issue.images || []).filter((image) => image.source_type === 'description');
-        document.getElementById('issueDescription').innerHTML = `
-            <div class="issue-text">${renderTextWithLineBreaks(issue.description)}</div>
-            ${renderInlineImages(descriptionImages)}
-        `;
+        document.getElementById('issueDescription').innerHTML = `<div class="issue-text">${renderTextWithLineBreaks(issue.description)}</div>${renderInlineImages(descriptionImages)}`;
         document.getElementById('issueCreated').textContent = new Date(issue.created_at).toLocaleString();
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
         document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
         document.getElementById('issueBranch').innerHTML = renderBranchDisplay(issue.branch);
-        
         const statusBadge = document.getElementById('issueStatus');
         statusBadge.textContent = formatStatus(issue.status);
         statusBadge.className = `status-badge ${issue.status}`;
-        
-        // Load comments
-        loadComments(issue.comments);
-        
-        // Load images
-        loadImages(issue.images);
-        
+        issueStatusSelect.value = issue.status;
+        issueStatusSelect.disabled = false;
+        await populateStorySprintSelect(issue.sprint_id);
+        issueSprintSelect.disabled = false;
+        renderPlanning(issue);
+        renderActivity(issue.activity_events || []);
+        setInlineSavingStatus(issueStatusSaving, '');
+        setInlineSavingStatus(issueSprintSaving, '');
+        loadComments(issue.comments || []);
+        loadImages(issue.images || []);
     } catch (error) {
         console.error('Error loading issue:', error);
         alert('An error occurred');
     }
 }
 
-// Load comments
 function loadComments(comments) {
     const commentsList = document.getElementById('commentsList');
-    
     if (comments.length === 0) {
         commentsList.innerHTML = '<div class="no-data"><p>No comments yet. Be the first to comment!</p></div>';
         return;
     }
-    
     commentsList.innerHTML = comments.map(comment => `
         <div class="comment">
             <div class="comment-header">
@@ -305,324 +228,241 @@ function loadComments(comments) {
             </div>
             <div class="comment-content">${renderTextWithLineBreaks(comment.content)}</div>
             ${renderInlineImages(comment.images || [], 'inline-image-list comment-image-list')}
-        </div>
-    `).join('');
+        </div>`).join('');
 }
 
-// Add comment
 document.getElementById('addCommentForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
     const content = document.getElementById('commentContent').value;
-    const commentImageFiles = commentImageUploadInput ? commentImageUploadInput.files : null;
-    
     try {
-        const response = await fetch(`/api/issues/${issueId}/comments`, {
+        const createdComment = await fetchJson(`/api/issues/${issueId}/comments`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                content,
-                username
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, username })
         });
-        
-        if (response.ok) {
-            const createdComment = await response.json();
-            await uploadIssueImages(issueId, commentImageFiles, 'comment', createdComment.id);
-            document.getElementById('commentContent').value = '';
-            if (commentImageUploadInput) {
-                commentImageUploadInput.value = '';
-            }
-            if (commentFileNameLabel) {
-                commentFileNameLabel.textContent = 'No files selected';
-            }
-            // Reload issue to get updated comments
-            loadIssue();
-        } else {
-            alert('Failed to add comment');
-        }
+        await uploadIssueImages(issueId, commentImageUploadInput?.files, 'comment', createdComment.id);
+        document.getElementById('addCommentForm').reset();
+        commentFileNameLabel.textContent = 'No files selected';
+        await loadIssue();
     } catch (error) {
         console.error('Error:', error);
-        alert('An error occurred');
+        alert(error.message || 'An error occurred');
     }
 });
 
-// Format status for display
-function formatStatus(status) {
-    return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-}
-
-// Load images
 function loadImages(images) {
-    const imagesContainer = document.getElementById('issueImages');
-    
-    if (images.length === 0) {
-        imagesContainer.innerHTML = '<div class="no-data"><p>No images attached.</p></div>';
+    const issueImages = document.getElementById('issueImages');
+    const standaloneImages = (images || []).filter((image) => image.source_type === 'issue');
+    if (standaloneImages.length === 0) {
+        issueImages.innerHTML = '<div class="no-data"><p>No standalone images uploaded yet.</p></div>';
         return;
     }
-    
-    const sortedImages = [...images].sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
-
-    imagesContainer.innerHTML = sortedImages.map(image => `
-        <div class="image-item" data-image-id="${image.id}">
+    issueImages.innerHTML = standaloneImages.map(image => `
+        <div class="image-item">
             <img src="/static/uploads/${encodeURIComponent(image.filename)}" alt="Issue image">
-            <div class="image-meta">
-                <div class="image-meta-line">${formatUploadMeta(image)}</div>
-            </div>
             <button class="image-delete-btn" onclick="deleteImage(${image.id})">Delete</button>
-        </div>
-    `).join('');
+            <div class="image-meta"><div class="image-meta-line">${formatUploadMeta(image)}</div></div>
+        </div>`).join('');
 }
 
-// Edit title functionality
-document.getElementById('editTitleBtn').addEventListener('click', () => {
-    const titleDisplay = document.getElementById('issueTitle');
-    const titleEdit = document.getElementById('issueTitleEdit');
-    const editBtn = document.getElementById('editTitleBtn');
-    const controls = document.getElementById('titleEditControls');
-    
-    titleEdit.value = titleDisplay.textContent;
-    titleDisplay.style.display = 'none';
-    titleEdit.style.display = 'block';
-    controls.style.display = 'flex';
-    editBtn.style.display = 'none';
-    titleEdit.focus();
-});
-
-document.getElementById('saveTitleBtn').addEventListener('click', async () => {
-    const titleEdit = document.getElementById('issueTitleEdit');
-    const newTitle = titleEdit.value.trim();
-    
-    if (!newTitle) {
-        alert('Title cannot be empty');
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/issues/${issueId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ title: newTitle })
-        });
-        
-        if (response.ok) {
-            document.getElementById('issueTitle').textContent = newTitle;
-            cancelTitleEdit();
-        } else {
-            alert('Failed to update title');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
-    }
-});
-
-document.getElementById('cancelTitleBtn').addEventListener('click', cancelTitleEdit);
-
-function cancelTitleEdit() {
-    const titleDisplay = document.getElementById('issueTitle');
-    const titleEdit = document.getElementById('issueTitleEdit');
-    const editBtn = document.getElementById('editTitleBtn');
-    const controls = document.getElementById('titleEditControls');
-    
-    titleDisplay.style.display = 'block';
-    titleEdit.style.display = 'none';
-    controls.style.display = 'none';
-    editBtn.style.display = 'inline-block';
-}
-
-// Edit description functionality
-document.getElementById('editDescriptionBtn').addEventListener('click', () => {
-    const descDisplay = document.getElementById('issueDescription');
-    const descEdit = document.getElementById('issueDescriptionEdit');
-    const editBtn = document.getElementById('editDescriptionBtn');
-    const controls = document.getElementById('descriptionEditControls');
-    
-    descEdit.value = currentIssue ? currentIssue.description : '';
-    descDisplay.style.display = 'none';
-    descEdit.style.display = 'block';
-    controls.style.display = 'flex';
-    editBtn.style.display = 'none';
-    descEdit.focus();
-});
-
-document.getElementById('saveDescriptionBtn').addEventListener('click', async () => {
-    const descEdit = document.getElementById('issueDescriptionEdit');
-    const newDescription = descEdit.value.trim();
-    
-    if (!newDescription) {
-        alert('Description cannot be empty');
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/issues/${issueId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ description: newDescription })
-        });
-        
-        if (response.ok) {
-            if (currentIssue) {
-                currentIssue.description = newDescription;
-            }
-            const descriptionImages = currentIssue
-                ? (currentIssue.images || []).filter((image) => image.source_type === 'description')
-                : [];
-            document.getElementById('issueDescription').innerHTML = `
-                <div class="issue-text">${renderTextWithLineBreaks(newDescription)}</div>
-                ${renderInlineImages(descriptionImages)}
-            `;
-            cancelDescriptionEdit();
-        } else {
-            alert('Failed to update description');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
-    }
-});
-
-document.getElementById('cancelDescriptionBtn').addEventListener('click', cancelDescriptionEdit);
-
-document.getElementById('editBranchBtn').addEventListener('click', () => {
-    const branchDisplay = document.getElementById('issueBranch');
-    const branchEdit = document.getElementById('issueBranchEdit');
-    const editBtn = document.getElementById('editBranchBtn');
-    const controls = document.getElementById('branchEditControls');
-
-    branchEdit.value = currentIssue?.branch || '';
-    branchDisplay.style.display = 'none';
-    branchEdit.style.display = 'block';
-    controls.style.display = 'flex';
-    editBtn.style.display = 'none';
-    branchEdit.focus();
-});
-
-document.getElementById('saveBranchBtn').addEventListener('click', async () => {
-    const branchEdit = document.getElementById('issueBranchEdit');
-    const newBranch = branchEdit.value.trim();
-
-    try {
-        const response = await fetch(`/api/issues/${issueId}`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ branch: newBranch || null })
-        });
-
-        if (response.ok) {
-            const updatedIssue = await response.json();
-            currentIssue = updatedIssue;
-            document.getElementById('issueBranch').innerHTML = renderBranchDisplay(updatedIssue.branch);
-            cancelBranchEdit();
-        } else {
-            alert('Failed to update branch');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
-    }
-});
-
-document.getElementById('cancelBranchBtn').addEventListener('click', cancelBranchEdit);
-
-function cancelBranchEdit() {
-    const branchDisplay = document.getElementById('issueBranch');
-    const branchEdit = document.getElementById('issueBranchEdit');
-    const editBtn = document.getElementById('editBranchBtn');
-    const controls = document.getElementById('branchEditControls');
-
-    branchDisplay.style.display = 'block';
-    branchEdit.style.display = 'none';
-    controls.style.display = 'none';
-    editBtn.style.display = 'inline-block';
-}
-
-const deleteIssueBtn = document.getElementById('deleteIssueBtn');
+let deleteConfirmState = false;
 let deleteConfirmTimeoutId = null;
-
+const deleteIssueBtn = document.getElementById('deleteIssueBtn');
 function resetDeleteButtonState() {
-    if (deleteConfirmTimeoutId) {
-        clearTimeout(deleteConfirmTimeoutId);
-        deleteConfirmTimeoutId = null;
-    }
-    deleteIssueBtn.dataset.confirming = 'false';
+    deleteConfirmState = false;
     deleteIssueBtn.disabled = false;
     deleteIssueBtn.textContent = 'Delete Issue';
-}
-
-deleteIssueBtn.addEventListener('click', async () => {
-    const targetIssueId = currentIssue?.id || Number(issueId);
-    if (!targetIssueId) {
-        alert('Issue details are still loading. Please try again in a moment.');
-        return;
-    }
-
-    if (deleteIssueBtn.dataset.confirming !== 'true') {
-        deleteIssueBtn.dataset.confirming = 'true';
-        deleteIssueBtn.textContent = 'Click Again to Confirm';
-        deleteConfirmTimeoutId = setTimeout(() => {
-            resetDeleteButtonState();
-        }, 5000);
-        return;
-    }
-
     if (deleteConfirmTimeoutId) {
         clearTimeout(deleteConfirmTimeoutId);
         deleteConfirmTimeoutId = null;
     }
-
+}
+deleteIssueBtn.addEventListener('click', async () => {
+    if (!currentIssue) return;
+    if (!deleteConfirmState) {
+        deleteConfirmState = true;
+        deleteIssueBtn.textContent = 'Click again to confirm';
+        deleteConfirmTimeoutId = setTimeout(resetDeleteButtonState, 5000);
+        return;
+    }
     deleteIssueBtn.disabled = true;
     deleteIssueBtn.textContent = 'Deleting...';
-
     try {
-        const response = await fetch(`/api/issues/${targetIssueId}`, {
-            method: 'DELETE'
-        });
-
-        if (response.ok) {
-            window.location.href = '/static/backlog.html';
-            return;
-        }
-
-        const error = await response.json().catch(() => ({}));
-        alert(error.detail || 'Failed to delete issue');
+        await fetchJson(`/api/issues/${issueId}`, { method: 'DELETE' });
+        window.location.href = '/static/backlog.html';
     } catch (error) {
         console.error('Error deleting issue:', error);
-        alert('An error occurred while deleting the issue');
+        alert(error.message || 'An error occurred while deleting the issue');
     } finally {
         resetDeleteButtonState();
     }
 });
 
+function cancelTitleEdit() {
+    document.getElementById('issueTitle').style.display = 'block';
+    document.getElementById('issueTitleEdit').style.display = 'none';
+    document.getElementById('titleEditControls').style.display = 'none';
+    document.getElementById('editTitleBtn').style.display = 'inline-block';
+}
 function cancelDescriptionEdit() {
-    const descDisplay = document.getElementById('issueDescription');
-    const descEdit = document.getElementById('issueDescriptionEdit');
-    const editBtn = document.getElementById('editDescriptionBtn');
-    const controls = document.getElementById('descriptionEditControls');
-    
-    descDisplay.style.display = 'block';
-    descEdit.style.display = 'none';
-    controls.style.display = 'none';
-    editBtn.style.display = 'inline-block';
+    document.getElementById('issueDescription').style.display = 'block';
+    document.getElementById('issueDescriptionEdit').style.display = 'none';
+    document.getElementById('descriptionEditControls').style.display = 'none';
+    document.getElementById('editDescriptionBtn').style.display = 'inline-block';
+}
+function cancelBranchEdit() {
+    document.getElementById('issueBranch').style.display = 'inline';
+    document.getElementById('issueBranchEdit').style.display = 'none';
+    document.getElementById('branchEditControls').style.display = 'none';
+    document.getElementById('editBranchBtn').style.display = 'inline-block';
+}
+function cancelPlanningEdit() {
+    document.getElementById('issuePlanningView').style.display = 'grid';
+    document.getElementById('issuePlanningEditWrap').style.display = 'none';
+    document.getElementById('editPlanningBtn').style.display = 'inline-block';
 }
 
-// Image upload functionality
-let selectedFile = null;
+document.getElementById('editTitleBtn').addEventListener('click', () => {
+    document.getElementById('issueTitle').style.display = 'none';
+    document.getElementById('issueTitleEdit').style.display = 'block';
+    document.getElementById('issueTitleEdit').value = currentIssue?.title || '';
+    document.getElementById('titleEditControls').style.display = 'flex';
+    document.getElementById('editTitleBtn').style.display = 'none';
+});
+document.getElementById('cancelTitleBtn').addEventListener('click', cancelTitleEdit);
+document.getElementById('saveTitleBtn').addEventListener('click', async () => {
+    const newTitle = document.getElementById('issueTitleEdit').value.trim();
+    if (!newTitle) return alert('Title cannot be empty');
+    try {
+        currentIssue = await patchIssue({ title: newTitle });
+        document.getElementById('issueTitle').textContent = currentIssue.title;
+        renderActivity(currentIssue.activity_events || []);
+        cancelTitleEdit();
+    } catch (error) {
+        alert(error.message || 'Failed to update title');
+    }
+});
 
+document.getElementById('editDescriptionBtn').addEventListener('click', () => {
+    document.getElementById('issueDescription').style.display = 'none';
+    document.getElementById('issueDescriptionEdit').style.display = 'block';
+    document.getElementById('issueDescriptionEdit').value = currentIssue?.description || '';
+    document.getElementById('descriptionEditControls').style.display = 'flex';
+    document.getElementById('editDescriptionBtn').style.display = 'none';
+});
+document.getElementById('cancelDescriptionBtn').addEventListener('click', cancelDescriptionEdit);
+document.getElementById('saveDescriptionBtn').addEventListener('click', async () => {
+    const newDescription = document.getElementById('issueDescriptionEdit').value.trim();
+    if (!newDescription) return alert('Description cannot be empty');
+    try {
+        currentIssue = await patchIssue({ description: newDescription });
+        const descriptionImages = (currentIssue.images || []).filter((image) => image.source_type === 'description');
+        document.getElementById('issueDescription').innerHTML = `<div class="issue-text">${renderTextWithLineBreaks(currentIssue.description)}</div>${renderInlineImages(descriptionImages)}`;
+        renderActivity(currentIssue.activity_events || []);
+        cancelDescriptionEdit();
+    } catch (error) {
+        alert(error.message || 'Failed to update description');
+    }
+});
+
+document.getElementById('editBranchBtn').addEventListener('click', () => {
+    document.getElementById('issueBranch').style.display = 'none';
+    document.getElementById('issueBranchEdit').style.display = 'block';
+    document.getElementById('issueBranchEdit').value = currentIssue?.branch || '';
+    document.getElementById('branchEditControls').style.display = 'flex';
+    document.getElementById('editBranchBtn').style.display = 'none';
+});
+document.getElementById('cancelBranchBtn').addEventListener('click', cancelBranchEdit);
+document.getElementById('saveBranchBtn').addEventListener('click', async () => {
+    try {
+        currentIssue = await patchIssue({ branch: document.getElementById('issueBranchEdit').value.trim() || null });
+        document.getElementById('issueBranch').innerHTML = renderBranchDisplay(currentIssue.branch);
+        renderActivity(currentIssue.activity_events || []);
+        cancelBranchEdit();
+    } catch (error) {
+        alert(error.message || 'Failed to update branch');
+    }
+});
+
+document.getElementById('editPlanningBtn').addEventListener('click', () => {
+    document.getElementById('issuePlanningView').style.display = 'none';
+    document.getElementById('issuePlanningEditWrap').style.display = 'block';
+    document.getElementById('editPlanningBtn').style.display = 'none';
+    document.getElementById('issuePriorityEdit').value = currentIssue?.priority || 'medium';
+    document.getElementById('issueStoryPointsEdit').value = currentIssue?.story_points ?? '';
+    document.getElementById('issueBlockedReasonEdit').value = currentIssue?.blocked_reason || '';
+    document.getElementById('issueAcceptanceCriteriaEdit').value = currentIssue?.acceptance_criteria || '';
+});
+document.getElementById('cancelPlanningBtn').addEventListener('click', cancelPlanningEdit);
+document.getElementById('savePlanningBtn').addEventListener('click', async () => {
+    const payload = {
+        priority: document.getElementById('issuePriorityEdit').value,
+        story_points: document.getElementById('issueStoryPointsEdit').value ? Number(document.getElementById('issueStoryPointsEdit').value) : null,
+        blocked_reason: document.getElementById('issueBlockedReasonEdit').value.trim() || null,
+        acceptance_criteria: document.getElementById('issueAcceptanceCriteriaEdit').value.trim() || null
+    };
+    try {
+        currentIssue = await patchIssue(payload);
+        renderPlanning(currentIssue);
+        const statusBadge = document.getElementById('issueStatus');
+        statusBadge.textContent = formatStatus(currentIssue.status);
+        statusBadge.className = `status-badge ${currentIssue.status}`;
+        issueStatusSelect.value = currentIssue.status;
+        renderActivity(currentIssue.activity_events || []);
+        cancelPlanningEdit();
+    } catch (error) {
+        alert(error.message || 'Failed to update planning');
+    }
+});
+
+issueStatusSelect.addEventListener('change', async (event) => {
+    const previousValue = currentIssue?.status || 'to_do';
+    const nextValue = event.target.value;
+    if (!currentIssue || nextValue === previousValue) return;
+    issueStatusSelect.disabled = true;
+    setInlineSavingStatus(issueStatusSaving, 'Saving...');
+    try {
+        currentIssue = await patchIssue({ status: nextValue });
+        const statusBadge = document.getElementById('issueStatus');
+        statusBadge.textContent = formatStatus(currentIssue.status);
+        statusBadge.className = `status-badge ${currentIssue.status}`;
+        issueStatusSelect.value = currentIssue.status;
+        renderPlanning(currentIssue);
+        renderActivity(currentIssue.activity_events || []);
+        setInlineSavingStatus(issueStatusSaving, 'Saved');
+        setTimeout(() => setInlineSavingStatus(issueStatusSaving, ''), 1200);
+    } catch (error) {
+        issueStatusSelect.value = previousValue;
+        setInlineSavingStatus(issueStatusSaving, error.message || 'Failed to save', true);
+    } finally {
+        issueStatusSelect.disabled = false;
+    }
+});
+issueSprintSelect.addEventListener('change', async (event) => {
+    const previousValue = currentIssue?.sprint_id == null ? '' : String(currentIssue.sprint_id);
+    const nextValue = event.target.value;
+    if (!currentIssue || nextValue === previousValue) return;
+    issueSprintSelect.disabled = true;
+    setInlineSavingStatus(issueSprintSaving, 'Saving...');
+    try {
+        currentIssue = await patchIssue({ sprint_id: nextValue === '' ? null : Number(nextValue) });
+        issueSprintSelect.value = currentIssue.sprint_id == null ? '' : String(currentIssue.sprint_id);
+        renderActivity(currentIssue.activity_events || []);
+        setInlineSavingStatus(issueSprintSaving, 'Saved');
+        setTimeout(() => setInlineSavingStatus(issueSprintSaving, ''), 1200);
+    } catch (error) {
+        issueSprintSelect.value = previousValue;
+        setInlineSavingStatus(issueSprintSaving, error.message || 'Failed to save', true);
+    } finally {
+        issueSprintSelect.disabled = false;
+    }
+});
+
+let selectedFile = null;
 document.getElementById('imageUpload').addEventListener('change', (e) => {
     const file = e.target.files[0];
     const fileName = document.getElementById('fileName');
     const uploadBtn = document.getElementById('uploadImageBtn');
-    
     if (file) {
         selectedFile = file;
         fileName.textContent = file.name;
@@ -633,70 +473,38 @@ document.getElementById('imageUpload').addEventListener('change', (e) => {
         uploadBtn.style.display = 'none';
     }
 });
-
 document.getElementById('uploadImageBtn').addEventListener('click', async () => {
-    if (!selectedFile) {
-        alert('Please select a file');
-        return;
-    }
-    
+    if (!selectedFile) return alert('Please select a file');
     const progressEl = document.getElementById('uploadProgress');
     progressEl.textContent = 'Uploading...';
-    
     const formData = new FormData();
     formData.append('file', selectedFile);
-    
     try {
-        const response = await fetch(`/api/issues/${issueId}/images?source_type=issue&uploaded_by=${encodeURIComponent(username)}`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (response.ok) {
-            progressEl.textContent = 'Upload successful!';
-            document.getElementById('imageUpload').value = '';
-            document.getElementById('fileName').textContent = 'No file chosen';
-            document.getElementById('uploadImageBtn').style.display = 'none';
-            selectedFile = null;
-            
-            // Reload issue to show new image
-            setTimeout(() => {
-                progressEl.textContent = '';
-                loadIssue();
-            }, 1000);
-        } else {
-            const error = await response.json();
+        await fetchJson(`/api/issues/${issueId}/images?source_type=issue&uploaded_by=${encodeURIComponent(username)}`, { method: 'POST', body: formData });
+        progressEl.textContent = 'Upload successful!';
+        document.getElementById('imageUpload').value = '';
+        document.getElementById('fileName').textContent = 'No file chosen';
+        document.getElementById('uploadImageBtn').style.display = 'none';
+        selectedFile = null;
+        setTimeout(async () => {
             progressEl.textContent = '';
-            alert(error.detail || 'Failed to upload image');
-        }
+            await loadIssue();
+        }, 1000);
     } catch (error) {
-        console.error('Error:', error);
         progressEl.textContent = '';
-        alert('An error occurred while uploading');
+        alert(error.message || 'Failed to upload image');
     }
 });
 
-// Delete image
 async function deleteImage(imageId) {
-    if (!confirm('Are you sure you want to delete this image?')) {
-        return;
-    }
-    
+    if (!confirm('Are you sure you want to delete this image?')) return;
     try {
-        const response = await fetch(`/api/issues/${issueId}/images/${imageId}`, {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            loadIssue(); // Reload to show updated images
-        } else {
-            alert('Failed to delete image');
-        }
+        await fetchJson(`/api/issues/${issueId}/images/${imageId}`, { method: 'DELETE' });
+        await loadIssue();
     } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred');
+        alert(error.message || 'Failed to delete image');
     }
 }
+window.deleteImage = deleteImage;
 
-// Initial load
 loadIssue();

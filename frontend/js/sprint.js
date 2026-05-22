@@ -1,183 +1,96 @@
-// Check if user is logged in
 const username = localStorage.getItem('username');
 if (!username) {
     window.location.href = '/static/index.html';
 }
 
 document.getElementById('currentUser').textContent = username;
+const { fetchJson, fetchSprints, buildSprintSelectOptions, renderIssueCard, attachInlineIssueEditors } = window.TM_SHARED;
+let currentSprint = null;
+let currentSprintIssues = [];
+let sprintList = [];
+let sprintMap = new Map();
 
-// Logout functionality
-document.getElementById('logoutBtn').addEventListener('click', () => {
-    localStorage.removeItem('username');
-    window.location.href = '/static/index.html';
-});
-
-// Create Issue Modal
 const createIssueModal = document.getElementById('createIssueModal');
 const createIssueBtn = document.getElementById('createIssueBtn');
 const closeModal = document.querySelector('#createIssueModal .close');
 const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
 const issueSprintSelect = document.getElementById('issueSprintId');
+const issueImagesInput = document.getElementById('issueImages');
+const issueImagesLabel = document.getElementById('issueImagesLabel');
+const sprintParams = new URLSearchParams(window.location.search);
+const requestedSprintId = sprintParams.get('sprint_id');
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('username');
+    window.location.href = '/static/index.html';
+});
 
 createIssueBtn.addEventListener('click', async () => {
     await populateIssueSprintOptions();
     createIssueModal.classList.add('show');
 });
-
-closeModal.addEventListener('click', () => {
-    createIssueModal.classList.remove('show');
-});
-
-cancelBtn.addEventListener('click', () => {
-    createIssueModal.classList.remove('show');
-});
-
+closeModal.addEventListener('click', () => createIssueModal.classList.remove('show'));
+cancelBtn.addEventListener('click', () => createIssueModal.classList.remove('show'));
 window.addEventListener('click', (e) => {
-    if (e.target === createIssueModal) {
-        createIssueModal.classList.remove('show');
-    }
+    if (e.target === createIssueModal) createIssueModal.classList.remove('show');
 });
-
-const issueImagesInput = document.getElementById('issueImages');
-const issueImagesLabel = document.getElementById('issueImagesLabel');
 
 if (issueImagesInput && issueImagesLabel) {
     issueImagesInput.addEventListener('change', () => {
         const files = issueImagesInput.files;
-        if (!files || files.length === 0) {
-            issueImagesLabel.textContent = 'No files selected';
-            return;
-        }
-        issueImagesLabel.textContent = `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+        issueImagesLabel.textContent = !files || files.length === 0 ? 'No files selected' : `${files.length} image${files.length === 1 ? '' : 's'} selected`;
     });
 }
 
 async function populateIssueSprintOptions() {
-    if (!issueSprintSelect) {
-        return;
-    }
-
-    try {
-        const [sprintsResponse, activeSprintResponse] = await Promise.all([
-            fetch('/api/sprints'),
-            fetch('/api/sprints/active'),
-        ]);
-
-        if (!sprintsResponse.ok) {
-            return;
-        }
-
-        const sprints = await sprintsResponse.json();
-        const activeSprint = activeSprintResponse.ok ? await activeSprintResponse.json() : null;
-
-        const existingValue = issueSprintSelect.value;
-        issueSprintSelect.innerHTML = '<option value="">Auto (Active Sprint)</option>';
-
-        sprints.forEach((sprint) => {
-            const option = document.createElement('option');
-            option.value = String(sprint.id);
-            option.textContent = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
-            issueSprintSelect.appendChild(option);
-        });
-
-        if (existingValue && issueSprintSelect.querySelector(`option[value="${existingValue}"]`)) {
-            issueSprintSelect.value = existingValue;
-        } else if (currentSprint) {
-            issueSprintSelect.value = String(currentSprint.id);
-        } else if (activeSprint) {
-            issueSprintSelect.value = String(activeSprint.id);
-        }
-    } catch (error) {
-        console.error('Error loading sprint options:', error);
-    }
+    issueSprintSelect.innerHTML = buildSprintSelectOptions(sprintList, currentSprint?.id ?? null, false, true);
+    if (currentSprint) issueSprintSelect.value = String(currentSprint.id);
 }
 
 async function uploadIssueImages(issueId, files) {
-    if (!files || files.length === 0) {
-        return;
-    }
-
-    const uploads = Array.from(files).map((file) => {
+    if (!files || files.length === 0) return;
+    await Promise.all(Array.from(files).map((file) => {
         const formData = new FormData();
         formData.append('file', file);
-        return fetch(`/api/issues/${issueId}/images?source_type=description&uploaded_by=${encodeURIComponent(username)}`, {
-            method: 'POST',
-            body: formData,
-        });
-    });
-
-    const results = await Promise.all(uploads);
-    const hasFailure = results.some((result) => !result.ok);
-    if (hasFailure) {
-        throw new Error('One or more image uploads failed');
-    }
+        return fetch(`/api/issues/${issueId}/images?source_type=description&uploaded_by=${encodeURIComponent(username)}`, { method: 'POST', body: formData });
+    }));
 }
 
-// Create Issue Form
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
-    const title = document.getElementById('issueTitle').value;
-    const description = document.getElementById('issueDescription').value;
-    const assignedTo = document.getElementById('issueAssignedTo').value || null;
-    const sprintIdRaw = issueSprintSelect ? issueSprintSelect.value : '';
-    const sprintId = sprintIdRaw ? Number(sprintIdRaw) : null;
-    const branchInput = document.getElementById('issueBranch');
-    const branch = branchInput && branchInput.value.trim() ? branchInput.value.trim() : null;
-    const imageFiles = issueImagesInput ? issueImagesInput.files : null;
-    
+    const payload = {
+        title: document.getElementById('issueTitle').value,
+        description: document.getElementById('issueDescription').value,
+        created_by: username,
+        assigned_to: document.getElementById('issueAssignedTo').value || null,
+        sprint_id: issueSprintSelect?.value ? Number(issueSprintSelect.value) : null,
+        branch: document.getElementById('issueBranch').value.trim() || null,
+        acceptance_criteria: document.getElementById('issueAcceptanceCriteria').value.trim() || null,
+        story_points: document.getElementById('issueStoryPoints').value ? Number(document.getElementById('issueStoryPoints').value) : null,
+        priority: document.getElementById('issuePriority').value,
+        blocked_reason: document.getElementById('issueBlockedReason').value.trim() || null
+    };
     try {
-        const response = await fetch('/api/issues', {
+        const createdIssue = await fetchJson('/api/issues', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                title,
-                description,
-                created_by: username,
-                assigned_to: assignedTo,
-                sprint_id: sprintId,
-                branch
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
-        
-        if (response.ok) {
-            const createdIssue = await response.json();
-            await uploadIssueImages(createdIssue.id, imageFiles);
-            createIssueModal.classList.remove('show');
-            document.getElementById('createIssueForm').reset();
-            if (issueImagesLabel) {
-                issueImagesLabel.textContent = 'No files selected';
-            }
-            await populateIssueSprintOptions();
-            
-            // Check if there's an active sprint, if so reload it
-            const activeSprint = await getActiveSprint();
-            if (activeSprint) {
-                loadSprintIssues(activeSprint.id);
-            }
-        } else {
-            alert('Failed to create issue');
-        }
+        await uploadIssueImages(createdIssue.id, issueImagesInput?.files);
+        createIssueModal.classList.remove('show');
+        document.getElementById('createIssueForm').reset();
+        if (issueImagesLabel) issueImagesLabel.textContent = 'No files selected';
+        if (currentSprint) await loadSprintIssues(currentSprint.id);
     } catch (error) {
         console.error('Error:', error);
-        alert('An error occurred');
+        alert(error.message || 'An error occurred');
     }
 });
 
-let currentSprint = null;
-
-const sprintParams = new URLSearchParams(window.location.search);
-const requestedSprintId = sprintParams.get('sprint_id');
-
-// Get active sprint
 async function getActiveSprint() {
     try {
         const response = await fetch('/api/sprints/active');
-        if (response.ok) {
-            return await response.json();
-        }
+        if (response.ok) return await response.json();
         return null;
     } catch (error) {
         console.error('Error fetching active sprint:', error);
@@ -185,24 +98,20 @@ async function getActiveSprint() {
     }
 }
 
-// Load sprint and issues
 async function loadSprint() {
+    const sprintData = await fetchSprints();
+    sprintList = sprintData.sprints;
+    sprintMap = sprintData.sprintMap;
+
     let sprint = null;
     if (requestedSprintId) {
         try {
-            const response = await fetch(`/api/sprints/${requestedSprintId}`);
-            if (response.ok) {
-                sprint = await response.json();
-            }
+            sprint = await fetchJson(`/api/sprints/${requestedSprintId}`);
         } catch (error) {
             console.error('Error fetching requested sprint:', error);
         }
     }
-
-    if (!sprint) {
-        sprint = await getActiveSprint();
-    }
-    
+    if (!sprint) sprint = await getActiveSprint();
     if (!sprint) {
         document.getElementById('noSprintMessage').style.display = 'block';
         document.getElementById('sprintBoard').style.display = 'none';
@@ -210,216 +119,112 @@ async function loadSprint() {
         document.getElementById('endSprintBtn').style.display = 'none';
         return;
     }
-    
     currentSprint = sprint;
     await populateIssueSprintOptions();
     document.getElementById('noSprintMessage').style.display = 'none';
     document.getElementById('sprintBoard').style.display = 'grid';
-    
     document.getElementById('sprintTitle').textContent = sprint.name;
     const sprintMeta = [];
     if (sprint.started_at) sprintMeta.push(`Started: ${new Date(sprint.started_at).toLocaleString()}`);
     if (!sprint.is_active) sprintMeta.push('Status: Planned / inactive');
     document.getElementById('sprintInfo').textContent = sprintMeta.join(' · ');
-    
-    if (sprint.is_active && !requestedSprintId) {
-        document.getElementById('startSprintBtn').style.display = 'none';
-        document.getElementById('endSprintBtn').style.display = 'block';
-    } else {
-        document.getElementById('startSprintBtn').style.display = requestedSprintId ? 'none' : 'block';
-        document.getElementById('endSprintBtn').style.display = 'none';
-    }
-    
+    document.getElementById('startSprintBtn').style.display = sprint.is_active || requestedSprintId ? 'none' : 'block';
+    document.getElementById('endSprintBtn').style.display = sprint.is_active && !requestedSprintId ? 'block' : 'none';
     await loadSprintIssues(sprint.id);
 }
 
-// Load issues for sprint
 async function loadSprintIssues(sprintId) {
     try {
-        const response = await fetch(`/api/issues?sprint_id=${sprintId}`);
-        const issues = await response.json();
-        
-        // Clear all columns
-        document.querySelectorAll('.column-content').forEach(column => {
+        currentSprintIssues = await fetchJson(`/api/issues?sprint_id=${sprintId}`);
+        document.querySelectorAll('.column-content').forEach((column) => {
             column.innerHTML = '';
         });
-        
-        // Group issues by status
-        const issuesByStatus = {
-            to_do: [],
-            in_progress: [],
-            in_review: [],
-            done: []
-        };
-        
-        issues.forEach(issue => {
+        const issuesByStatus = { to_do: [], in_progress: [], in_review: [], blocked: [], done: [] };
+        currentSprintIssues.forEach((issue) => {
+            if (!issuesByStatus[issue.status]) issuesByStatus[issue.status] = [];
             issuesByStatus[issue.status].push(issue);
         });
-        
-        // Populate columns
-        Object.keys(issuesByStatus).forEach(status => {
+        Object.keys(issuesByStatus).forEach((status) => {
             const column = document.querySelector(`.column-content[data-status="${status}"]`);
+            if (!column) return;
             const issues = issuesByStatus[status];
-            
-            // Update count
-            const countBadge = document.querySelector(`.column[data-status="${status}"] .issue-count`);
-            countBadge.textContent = issues.length;
-            
-            // Add issues to column
-            issues.forEach(issue => {
-                const issueCard = createIssueCard(issue);
-                column.appendChild(issueCard);
-            });
+            document.querySelector(`.column[data-status="${status}"] .issue-count`).textContent = issues.length;
+            column.innerHTML = issues.map((issue) => renderIssueCard(issue, { sprints: sprintList, sprintMap, viewHandler: 'viewIssue' })).join('');
         });
-        
+        attachInlineIssueEditors({ issues: currentSprintIssues, onUpdated: async () => { if (currentSprint) await loadSprintIssues(currentSprint.id); } });
         setupDragAndDrop();
     } catch (error) {
         console.error('Error loading sprint issues:', error);
     }
 }
 
-// Create issue card element
-function createIssueCard(issue) {
-    const card = document.createElement('div');
-    card.className = 'sprint-issue-card';
-    card.draggable = true;
-    card.dataset.issueId = issue.id;
-    
-    card.innerHTML = `
-        <h4>${issue.title}</h4>
-        <div class="issue-meta">
-            <div class="issue-id-badge">#${issue.id}</div>
-            <span>${issue.assigned_to || issue.created_by}</span>
-        </div>
-    `;
-    
-    card.addEventListener('click', () => {
-        window.location.href = `/static/issue.html?id=${issue.id}`;
-    });
-    
-    return card;
+function viewIssue(issueId) {
+    window.location.href = `/static/issue.html?id=${issueId}`;
 }
+window.viewIssue = viewIssue;
 
-// Setup drag and drop
+let draggedElement = null;
 function setupDragAndDrop() {
-    const cards = document.querySelectorAll('.sprint-issue-card');
+    const cards = document.querySelectorAll('.sprint-issue-card, .issue-card-rich');
     const columns = document.querySelectorAll('.column-content');
-    
-    cards.forEach(card => {
+    cards.forEach((card) => {
+        card.draggable = true;
         card.addEventListener('dragstart', handleDragStart);
         card.addEventListener('dragend', handleDragEnd);
     });
-    
-    columns.forEach(column => {
+    columns.forEach((column) => {
         column.addEventListener('dragover', handleDragOver);
         column.addEventListener('drop', handleDrop);
         column.addEventListener('dragenter', handleDragEnter);
         column.addEventListener('dragleave', handleDragLeave);
     });
 }
-
-let draggedElement = null;
-
 function handleDragStart(e) {
     draggedElement = this;
     this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
 }
-
-function handleDragEnd(e) {
+function handleDragEnd() {
     this.classList.remove('dragging');
-    document.querySelectorAll('.column-content').forEach(col => {
-        col.classList.remove('drag-over');
-    });
+    document.querySelectorAll('.column-content').forEach(col => col.classList.remove('drag-over'));
 }
-
 function handleDragOver(e) {
-    if (e.preventDefault) {
-        e.preventDefault();
-    }
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     return false;
 }
-
-function handleDragEnter(e) {
-    this.classList.add('drag-over');
-}
-
-function handleDragLeave(e) {
-    if (e.target.classList.contains('column-content')) {
-        this.classList.remove('drag-over');
-    }
-}
-
+function handleDragEnter() { this.classList.add('drag-over'); }
+function handleDragLeave(e) { if (e.target.classList.contains('column-content')) this.classList.remove('drag-over'); }
 async function handleDrop(e) {
-    if (e.stopPropagation) {
-        e.stopPropagation();
-    }
-    
+    e.stopPropagation();
     e.preventDefault();
-    
     const newStatus = this.dataset.status;
-    const issueId = draggedElement.dataset.issueId;
-    
+    const issueId = Number(draggedElement.dataset.issueId || draggedElement.dataset.issueId);
     try {
-        const response = await fetch(`/api/issues/${issueId}`, {
+        await fetchJson(`/api/issues/${issueId}`, {
             method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ status: newStatus })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus, updated_by: username })
         });
-        
-        if (response.ok) {
-            // Move the card to the new column
-            this.appendChild(draggedElement);
-            
-            // Update counts
-            updateIssueCounts();
-        } else {
-            alert('Failed to update issue status');
-        }
+        await loadSprintIssues(currentSprint.id);
     } catch (error) {
         console.error('Error:', error);
-        alert('An error occurred');
+        alert(error.message || 'Failed to update issue status');
     }
-    
     return false;
 }
 
-// Update issue counts in column headers
-function updateIssueCounts() {
-    document.querySelectorAll('.column').forEach(column => {
-        const status = column.dataset.status;
-        const count = column.querySelector('.column-content').children.length;
-        column.querySelector('.issue-count').textContent = count;
-    });
-}
-
-// End sprint button handler
 document.getElementById('endSprintBtn').addEventListener('click', async () => {
     if (!currentSprint) return;
-    
-    if (!confirm('End this sprint? All issues will be moved back to the backlog.')) {
-        return;
-    }
-    
+    if (!confirm('End this sprint? All issues will be moved back to the backlog.')) return;
     try {
-        const response = await fetch(`/api/sprints/${currentSprint.id}/end`, {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            alert('Sprint ended! All issues moved to backlog.');
-            window.location.href = '/static/backlog.html';
-        } else {
-            alert('Failed to end sprint');
-        }
+        await fetchJson(`/api/sprints/${currentSprint.id}/end`, { method: 'POST' });
+        alert('Sprint ended! All issues moved to backlog.');
+        window.location.href = '/static/backlog.html';
     } catch (error) {
         console.error('Error:', error);
-        alert('An error occurred');
+        alert(error.message || 'Failed to end sprint');
     }
 });
 
-// Initial load
 loadSprint();

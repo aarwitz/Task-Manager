@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 import uuid
 import shutil
+import re
 
 import models
 import schemas
@@ -25,6 +26,18 @@ def run_safe_migrations():
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN assigned_to VARCHAR"))
         if "branch" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN branch VARCHAR"))
+        if "acceptance_criteria" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN acceptance_criteria TEXT"))
+        if "updated_at" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN updated_at DATETIME"))
+            conn.execute(sql_text("UPDATE issues SET updated_at = created_at WHERE updated_at IS NULL"))
+        if "story_points" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN story_points INTEGER"))
+        if "priority" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN priority VARCHAR DEFAULT 'medium'"))
+            conn.execute(sql_text("UPDATE issues SET priority = 'medium' WHERE priority IS NULL"))
+        if "blocked_reason" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN blocked_reason TEXT"))
 
         image_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(issue_images)").fetchall()}
         if "comment_id" not in image_columns:
@@ -34,8 +47,129 @@ def run_safe_migrations():
         if "uploaded_by" not in image_columns:
             conn.execute(sql_text("ALTER TABLE issue_images ADD COLUMN uploaded_by VARCHAR"))
 
+        table_names = {row[0] for row in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "issue_activity" not in table_names:
+            conn.execute(sql_text("""
+                CREATE TABLE issue_activity (
+                    id INTEGER PRIMARY KEY,
+                    issue_id INTEGER NOT NULL,
+                    event_type VARCHAR NOT NULL,
+                    field_name VARCHAR,
+                    old_value TEXT,
+                    new_value TEXT,
+                    actor VARCHAR,
+                    created_at DATETIME,
+                    FOREIGN KEY(issue_id) REFERENCES issues (id)
+                )
+            """))
+            conn.execute(sql_text("CREATE INDEX IF NOT EXISTS ix_issue_activity_issue_id ON issue_activity (issue_id)"))
+
 
 run_safe_migrations()
+
+CANONICAL_TM_USERS = ["Dwight", "Jerry", "Resi", "Druck", "Aaron", "Taylor"]
+LOGIN_ALLOWED_USERS = CANONICAL_TM_USERS.copy()
+USERNAME_ALIASES = {
+    "claw": "Jerry",
+    "aaron": "Aaron",
+    "taylor": "Taylor",
+}
+
+
+def canonicalize_username(value: Optional[str]) -> Optional[str]:
+    normalized = normalize_optional_text(value)
+    if normalized is None:
+        return None
+    alias_key = normalized.lower()
+    if alias_key in USERNAME_ALIASES:
+        return USERNAME_ALIASES[alias_key]
+    for candidate in CANONICAL_TM_USERS:
+        if alias_key == candidate.lower():
+            return candidate
+    return normalized
+
+
+def validate_tm_user(value: Optional[str], *, field_name: str, allow_blank: bool = False, allowed_users: Optional[List[str]] = None) -> Optional[str]:
+    canonical = canonicalize_username(value)
+    if canonical is None:
+        if allow_blank:
+            return None
+        raise HTTPException(status_code=400, detail=f"{field_name} is required")
+    permitted = allowed_users or CANONICAL_TM_USERS
+    if canonical not in permitted:
+        allowed = ", ".join(permitted)
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}. Allowed: {allowed}")
+    return canonical
+
+
+def rewrite_historical_usernames(db: Session):
+    replacements = {
+        "Claw": "Jerry",
+        "claw": "Jerry",
+        "aaron": "Aaron",
+        "taylor": "Taylor",
+    }
+    for old, new in replacements.items():
+        if old == new:
+            continue
+        db.query(models.Issue).filter(models.Issue.created_by == old).update({models.Issue.created_by: new}, synchronize_session=False)
+        db.query(models.Issue).filter(models.Issue.assigned_to == old).update({models.Issue.assigned_to: new}, synchronize_session=False)
+        db.query(models.Comment).filter(models.Comment.username == old).update({models.Comment.username: new}, synchronize_session=False)
+        db.query(models.IssueImage).filter(models.IssueImage.uploaded_by == old).update({models.IssueImage.uploaded_by: new}, synchronize_session=False)
+        db.query(models.IssueActivity).filter(models.IssueActivity.actor == old).update({models.IssueActivity.actor: new}, synchronize_session=False)
+
+    existing_users = {user.username: user for user in db.query(models.User).all()}
+    keep = set(CANONICAL_TM_USERS)
+    for username in keep:
+        if username not in existing_users:
+            db.add(models.User(username=username, created_at=datetime.now()))
+
+    db.flush()
+    for removable in ["telegram", "aaron", "taylor", "Claw", "claw"]:
+        user = db.query(models.User).filter(models.User.username == removable).first()
+        if user:
+            db.delete(user)
+
+
+def normalize_optional_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def normalize_priority(value: Optional[str]) -> str:
+    priority = (value or "medium").strip().lower()
+    if priority not in models.PRIORITY_OPTIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid priority. Allowed: {', '.join(sorted(models.PRIORITY_OPTIONS))}")
+    return priority
+
+
+def normalize_status(value: Optional[str]) -> str:
+    status_value = (value or "to_do").strip().lower()
+    if status_value not in models.STATUS_OPTIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Allowed: {', '.join(sorted(models.STATUS_OPTIONS))}")
+    return status_value
+
+
+def log_issue_activity(db: Session, issue_id: int, event_type: str, actor: Optional[str] = None, field_name: Optional[str] = None, old_value: Optional[object] = None, new_value: Optional[object] = None):
+    activity = models.IssueActivity(
+        issue_id=issue_id,
+        event_type=event_type,
+        actor=actor,
+        field_name=field_name,
+        old_value=None if old_value is None else str(old_value),
+        new_value=None if new_value is None else str(new_value),
+        created_at=datetime.now(),
+    )
+    db.add(activity)
+
+
+def resolve_sprint_name(db: Session, sprint_id: Optional[int]) -> str:
+    if sprint_id is None:
+        return "Backlog"
+    sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
+    return sprint.name if sprint else f"Sprint {sprint_id}"
 
 app = FastAPI(title="Task Manager")
 
@@ -52,18 +186,23 @@ app.add_middleware(
 
 @app.post("/api/users/login", response_model=schemas.UserResponse)
 def login(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    """Login or create user if doesn't exist"""
-    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    """Login approved Task Manager developers only, while preserving canonical user identities."""
+    username = validate_tm_user(user.username, field_name="username", allowed_users=LOGIN_ALLOWED_USERS)
+    rewrite_historical_usernames(db)
+    db_user = db.query(models.User).filter(models.User.username == username).first()
     if not db_user:
-        db_user = models.User(username=user.username)
+        db_user = models.User(username=username)
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
+    else:
+        db.commit()
     return db_user
 
 @app.get("/api/users/current")
 def get_current_user(username: str, db: Session = Depends(get_db)):
     """Get current user info"""
+    username = validate_tm_user(username, field_name="username")
     user = db.query(models.User).filter(models.User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -71,8 +210,10 @@ def get_current_user(username: str, db: Session = Depends(get_db)):
 
 @app.get("/api/users", response_model=List[schemas.UserResponse])
 def list_users(db: Session = Depends(get_db)):
-    """List all users"""
-    return db.query(models.User).order_by(models.User.username).all()
+    """List canonical Task Manager users only"""
+    rewrite_historical_usernames(db)
+    db.commit()
+    return db.query(models.User).filter(models.User.username.in_(CANONICAL_TM_USERS)).order_by(models.User.username).all()
 
 @app.post("/api/issues", response_model=schemas.IssueResponse, status_code=status.HTTP_201_CREATED)
 def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
@@ -87,20 +228,26 @@ def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
         if not sprint:
             raise HTTPException(status_code=404, detail="Sprint not found")
 
-    normalized_branch = issue.branch.strip() if issue.branch else None
-    if normalized_branch == "":
-        normalized_branch = None
+    created_by = validate_tm_user(issue.created_by, field_name="created_by")
+    assigned_to = validate_tm_user(issue.assigned_to, field_name="assigned_to", allow_blank=True)
 
     db_issue = models.Issue(
         title=issue.title,
         description=issue.description,
-        created_by=issue.created_by,
-        assigned_to=issue.assigned_to,
+        acceptance_criteria=normalize_optional_text(issue.acceptance_criteria),
+        created_by=created_by,
+        assigned_to=assigned_to,
         sprint_id=target_sprint_id,
-        branch=normalized_branch,
-        status="to_do"
+        branch=normalize_optional_text(issue.branch),
+        story_points=issue.story_points,
+        priority=normalize_priority(issue.priority),
+        blocked_reason=normalize_optional_text(issue.blocked_reason),
+        status="blocked" if normalize_optional_text(issue.blocked_reason) else "to_do",
+        updated_at=datetime.now(),
     )
     db.add(db_issue)
+    db.flush()
+    log_issue_activity(db, db_issue.id, "created", actor=created_by, new_value=db_issue.title)
     db.commit()
     db.refresh(db_issue)
     return db_issue
@@ -127,6 +274,12 @@ def search_issues(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    priority: Optional[str] = None,
+    min_story_points: Optional[int] = None,
+    max_story_points: Optional[int] = None,
+    blocked_only: bool = False,
+    needs_review: bool = False,
+    stale_days: Optional[int] = None,
     in_backlog: bool = False,
     db: Session = Depends(get_db),
 ):
@@ -176,10 +329,30 @@ def search_issues(
         query = query.filter(models.Issue.sprint_id == None)
 
     if created_by:
-        query = query.filter(models.Issue.created_by == created_by)
+        query = query.filter(models.Issue.created_by == validate_tm_user(created_by, field_name="created_by"))
 
     if assigned_to:
-        query = query.filter(models.Issue.assigned_to == assigned_to)
+        query = query.filter(models.Issue.assigned_to == validate_tm_user(assigned_to, field_name="assigned_to"))
+
+    if priority:
+        query = query.filter(models.Issue.priority == normalize_priority(priority))
+
+    if min_story_points is not None:
+        query = query.filter(models.Issue.story_points >= min_story_points)
+
+    if max_story_points is not None:
+        query = query.filter(models.Issue.story_points <= max_story_points)
+
+    if blocked_only:
+        query = query.filter(or_(models.Issue.status == "blocked", models.Issue.blocked_reason.isnot(None)))
+
+    if needs_review:
+        query = query.filter(models.Issue.status == "in_review")
+
+    if stale_days is not None and stale_days >= 0:
+        cutoff = datetime.now().timestamp() - (stale_days * 86400)
+        query = query.filter(models.Issue.updated_at.is_not(None))
+        query = query.filter(models.Issue.updated_at <= datetime.fromtimestamp(cutoff))
 
     if date_from:
         try:
@@ -212,15 +385,46 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
     db_issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
     if not db_issue:
         raise HTTPException(status_code=404, detail="Issue not found")
-    
+
     update_data = issue_update.dict(exclude_unset=True)
+    actor = validate_tm_user(update_data.pop("updated_by", None), field_name="updated_by", allow_blank=True)
+
+    normalized_updates = {}
     for field, value in update_data.items():
-        if field == "branch":
-            value = value.strip() if value else None
-            if value == "":
-                value = None
-        setattr(db_issue, field, value)
-    
+        if field in {"branch", "acceptance_criteria", "blocked_reason"}:
+            value = normalize_optional_text(value)
+        elif field == "assigned_to":
+            value = validate_tm_user(value, field_name="assigned_to", allow_blank=True)
+        elif field == "priority":
+            value = normalize_priority(value)
+        elif field == "status":
+            value = normalize_status(value)
+        normalized_updates[field] = value
+
+    if "sprint_id" in normalized_updates and normalized_updates["sprint_id"] is not None:
+        sprint = db.query(models.Sprint).filter(models.Sprint.id == normalized_updates["sprint_id"]).first()
+        if not sprint:
+            raise HTTPException(status_code=404, detail="Sprint not found")
+
+    if normalized_updates.get("blocked_reason") and "status" not in normalized_updates:
+        normalized_updates["status"] = "blocked"
+    elif "blocked_reason" in normalized_updates and not normalized_updates.get("blocked_reason") and db_issue.status == "blocked" and "status" not in normalized_updates:
+        normalized_updates["status"] = "to_do"
+
+    changed = False
+    for field, value in normalized_updates.items():
+        old_value = getattr(db_issue, field)
+        if old_value != value:
+            changed = True
+            setattr(db_issue, field, value)
+            if field == "sprint_id":
+                log_issue_activity(db, issue_id, "field_changed", actor=actor, field_name=field, old_value=resolve_sprint_name(db, old_value), new_value=resolve_sprint_name(db, value))
+            else:
+                log_issue_activity(db, issue_id, "field_changed", actor=actor, field_name=field, old_value=old_value, new_value=value)
+
+    if changed:
+        db_issue.updated_at = datetime.now()
+
     db.commit()
     db.refresh(db_issue)
     return db_issue
@@ -249,12 +453,15 @@ def add_comment(issue_id: int, comment: schemas.CommentCreate, db: Session = Dep
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
     
+    comment_username = validate_tm_user(comment.username, field_name="username")
     db_comment = models.Comment(
         content=comment.content,
-        username=comment.username,
+        username=comment_username,
         issue_id=issue_id
     )
     db.add(db_comment)
+    db.flush()
+    log_issue_activity(db, issue_id, "comment_added", actor=comment_username, new_value=comment.content[:120])
     db.commit()
     db.refresh(db_comment)
     return db_comment
@@ -307,6 +514,8 @@ def upload_image(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
+    uploaded_by = validate_tm_user(uploaded_by, field_name="uploaded_by", allow_blank=True)
+
     # Create database record
     db_image = models.IssueImage(
         issue_id=issue_id,
@@ -397,36 +606,35 @@ def start_sprint(sprint_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/sprints/{sprint_id}/end")
 def end_sprint(sprint_id: int, db: Session = Depends(get_db)):
-    """End a sprint and move all issues back to backlog"""
+    """End a sprint without moving its issues to backlog."""
     sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
-    
-    # Move all issues back to backlog
-    issues = db.query(models.Issue).filter(models.Issue.sprint_id == sprint_id).all()
-    for issue in issues:
-        issue.sprint_id = None
-    
+
+    issue_count = db.query(models.Issue).filter(models.Issue.sprint_id == sprint_id).count()
     sprint.is_active = False
     sprint.ended_at = datetime.now()
     db.commit()
-    return {"message": "Sprint ended", "issues_moved": len(issues)}
+    return {"message": "Sprint ended", "issues_retained": issue_count, "sprint_id": sprint_id}
 
 @app.post("/api/issues/{issue_id}/assign-to-sprint")
 def assign_to_sprint(issue_id: int, sprint_id: int, db: Session = Depends(get_db)):
-    """Assign an issue to a sprint"""
+    """Assign an issue to a sprint without rewriting its status."""
     issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
-    
+
     sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
-    
+
+    old_sprint_id = issue.sprint_id
     issue.sprint_id = sprint_id
-    issue.status = "to_do"  # Reset to "to_do" when assigned to sprint
+    issue.updated_at = datetime.now()
+    if old_sprint_id != sprint_id:
+        log_issue_activity(db, issue_id, "field_changed", field_name="sprint_id", old_value=resolve_sprint_name(db, old_sprint_id), new_value=resolve_sprint_name(db, sprint_id))
     db.commit()
-    return {"message": "Issue assigned to sprint"}
+    return {"message": "Issue assigned to sprint", "sprint_id": sprint_id, "issue_id": issue_id, "status": issue.status}
 
 # Serve static files
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")

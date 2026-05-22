@@ -1,6 +1,6 @@
 const tg = window.Telegram?.WebApp;
 const params = new URLSearchParams(window.location.search);
-const username = params.get('user') || tg?.initDataUnsafe?.user?.username || tg?.initDataUnsafe?.user?.first_name || 'telegram';
+const username = params.get('user') || tg?.initDataUnsafe?.user?.first_name || 'Jerry';
 const meetingsConfig = [
   {
     title: params.get('meeting_title') || 'EWAG sync',
@@ -12,9 +12,9 @@ const meetingsConfig = [
 
 const els = {
   hudRight: document.getElementById('hudRight'),
-  aaronLabel: document.getElementById('aaronLabel'),
-  taylorLabel: document.getElementById('taylorLabel'),
-  jerryLabel: document.getElementById('jerryLabel'),
+  AaronLabel: document.getElementById('AaronLabel'),
+  TaylorLabel: document.getElementById('TaylorLabel'),
+  JerryLabel: document.getElementById('JerryLabel'),
   meetingsLabel: document.getElementById('meetingsLabel'),
   overlay: document.getElementById('detailOverlay'),
   closeModal: document.getElementById('closeModal'),
@@ -45,11 +45,9 @@ function setupTelegram() {
 }
 
 function canonOwner(name) {
-  const n = (name || '').toLowerCase();
-  if (['jerry', 'agent', 'bot'].some(x => n.includes(x))) return 'Jerry';
-  if (n.includes('aaron')) return 'Aaron';
-  if (n.includes('taylor')) return 'Taylor';
-  return name || 'Unassigned';
+  const normalized = (name || '').trim();
+  const aliasMap = { Claw: 'Jerry', claw: 'Jerry', aaron: 'Aaron', taylor: 'Taylor' };
+  return aliasMap[normalized] || normalized || 'Unassigned';
 }
 function short(text, n = 26) { return !text ? 'idle' : text.length > n ? `${text.slice(0, n - 1)}…` : text; }
 function bridgeUrl(user, next) {
@@ -88,53 +86,53 @@ async function resolveSprint() {
 }
 
 function setLabels() {
-  const aaron = latestFor('Aaron');
-  const taylor = latestFor('Taylor');
-  const jerry = latestFor('Jerry');
+  const AaronTask = latestFor('Aaron');
+  const TaylorTask = latestFor('Taylor');
+  const JerryTask = latestFor('Jerry');
   const meeting = meetingsConfig[0];
 
-  els.aaronLabel.textContent = `Aaron · Next: ${short(aaron?.title || 'nothing assigned')}`;
-  els.taylorLabel.textContent = `Taylor · Next: ${short(taylor?.title || 'nothing assigned')}`;
-  els.jerryLabel.textContent = `Jerry HQ · Working on ${short(jerry?.title || 'dispatching')} · Blocker: ${blockerText(jerry)}`;
+  els.AaronLabel.textContent = `Aaron · Next: ${short(AaronTask?.title || 'nothing assigned')}`;
+  els.TaylorLabel.textContent = `Taylor · Next: ${short(TaylorTask?.title || 'nothing assigned')}`;
+  els.JerryLabel.textContent = `Jerry HQ · Working on ${short(JerryTask?.title || 'dispatching')} · Blocker: ${blockerText(JerryTask)}`;
   els.meetingsLabel.textContent = `Meetings · ${meeting.when} ${meeting.title}`;
   els.hudRight.textContent = state.sprint ? `${state.sprint.name} · ${state.issues.length} live tasks` : 'Jerry dispatches today\'s quests';
 
   state.selected = {
-    aaron: aaron ? {
+    Aaron: AaronTask ? {
       icon: '🧢', eyebrow: 'AARON QUEST', title: 'Aaron',
-      summary: `Next task: ${aaron.title}`,
-      description: aaron.description || 'No description yet.',
-      meta: [`Status: ${statusLabel(aaron)}`, `Issue #${aaron.id}`, `Assigned to Aaron`],
-      primaryHref: issueUrl(aaron, 'aaron'), primaryLabel: 'Open task ↗',
-      secondaryHref: managerUrl('Aaron', 'aaron'), secondaryLabel: 'Open Aaron lane ↗'
+      summary: `Next task: ${AaronTask.title}`,
+      description: AaronTask.description || 'No description yet.',
+      meta: [`Status: ${statusLabel(AaronTask)}`, `Issue #${AaronTask.id}`, `Assigned to Aaron`],
+      primaryHref: issueUrl(AaronTask, 'Aaron'), primaryLabel: 'Open task ↗',
+      secondaryHref: managerUrl('Aaron', 'Aaron'), secondaryLabel: 'Open Aaron lane ↗'
     } : {
       icon: '🧢', eyebrow: 'AARON QUEST', title: 'Aaron',
       summary: 'No task assigned right now', description: 'Jerry has not assigned a current Aaron task in the active sprint.',
-      meta: ['Status: Idle'], primaryHref: managerUrl('Aaron', 'aaron'), primaryLabel: 'Open Aaron lane ↗'
+      meta: ['Status: Idle'], primaryHref: managerUrl('Aaron', 'Aaron'), primaryLabel: 'Open Aaron lane ↗'
     },
-    taylor: taylor ? {
+    Taylor: TaylorTask ? {
       icon: '💁‍♀️', eyebrow: 'TAYLOR QUEST', title: 'Taylor',
-      summary: `Next task: ${taylor.title}`,
-      description: taylor.description || 'No description yet.',
-      meta: [`Status: ${statusLabel(taylor)}`, `Issue #${taylor.id}`, `Assigned to Taylor`],
-      primaryHref: issueUrl(taylor, 'taylor'), primaryLabel: 'Open task ↗',
-      secondaryHref: managerUrl('Taylor', 'taylor'), secondaryLabel: 'Open Taylor lane ↗'
+      summary: `Next task: ${TaylorTask.title}`,
+      description: TaylorTask.description || 'No description yet.',
+      meta: [`Status: ${statusLabel(TaylorTask)}`, `Issue #${TaylorTask.id}`, `Assigned to Taylor`],
+      primaryHref: issueUrl(TaylorTask, 'Taylor'), primaryLabel: 'Open task ↗',
+      secondaryHref: managerUrl('Taylor', 'Taylor'), secondaryLabel: 'Open Taylor lane ↗'
     } : {
       icon: '💁‍♀️', eyebrow: 'TAYLOR QUEST', title: 'Taylor',
       summary: 'No task assigned right now', description: 'Jerry has not assigned a current Taylor task in the active sprint.',
-      meta: ['Status: Idle'], primaryHref: managerUrl('Taylor', 'taylor'), primaryLabel: 'Open Taylor lane ↗'
+      meta: ['Status: Idle'], primaryHref: managerUrl('Taylor', 'Taylor'), primaryLabel: 'Open Taylor lane ↗'
     },
-    jerry: jerry ? {
+    Jerry: JerryTask ? {
       icon: '🤖', eyebrow: 'JERRY HQ', title: 'Jerry HQ',
-      summary: `Working on: ${jerry.title}`,
-      description: jerry.description || 'No description yet.',
-      meta: [`Status: ${statusLabel(jerry)}`, `Issue #${jerry.id}`, `Blocker: ${blockerText(jerry)}`],
-      primaryHref: issueUrl(jerry, 'jerry'), primaryLabel: 'Open Jerry task ↗',
-      secondaryHref: managerUrl('Jerry', 'jerry'), secondaryLabel: 'Open factory map ↗'
+      summary: `Working on: ${JerryTask.title}`,
+      description: JerryTask.description || 'No description yet.',
+      meta: [`Status: ${statusLabel(JerryTask)}`, `Issue #${JerryTask.id}`, `Blocker: ${blockerText(JerryTask)}`],
+      primaryHref: issueUrl(JerryTask, 'Jerry'), primaryLabel: 'Open Jerry task ↗',
+      secondaryHref: managerUrl('Jerry', 'Jerry'), secondaryLabel: 'Open factory map ↗'
     } : {
       icon: '🤖', eyebrow: 'JERRY HQ', title: 'Jerry HQ',
       summary: 'Working on: dispatching', description: 'Jerry currently has no explicit task ticket, so this node represents routing and assignment work.',
-      meta: ['Status: Dispatching', 'Blocker: None'], primaryHref: managerUrl('Jerry', 'jerry'), primaryLabel: 'Open factory map ↗'
+      meta: ['Status: Dispatching', 'Blocker: None'], primaryHref: managerUrl('Jerry', 'Jerry'), primaryLabel: 'Open factory map ↗'
     },
     meetings: {
       icon: '📅', eyebrow: 'MEETING INFO', title: meeting.title,
@@ -142,7 +140,7 @@ function setLabels() {
       description: meeting.notes,
       meta: [`When: ${meeting.when}`, 'Type: Meeting'],
       primaryHref: meeting.href, primaryLabel: 'Open meeting link ↗',
-      secondaryHref: bridgeUrl('jerry', '/static/factory.html'), secondaryLabel: 'Open manager ↗'
+      secondaryHref: bridgeUrl('Jerry', '/static/factory.html'), secondaryLabel: 'Open manager ↗'
     }
   };
 }

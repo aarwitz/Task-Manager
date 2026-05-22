@@ -67,6 +67,24 @@
                     <strong>Assigned to:</strong>
                     <span id="issueAssignedTo"></span>
                 </div>
+                <div class="info-item issue-select-item">
+                    <strong>Status:</strong>
+                    <select id="issueStatusSelect" class="select issue-inline-select">
+                        <option value="to_do">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="in_review">In Review</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="done">Done</option>
+                    </select>
+                    <span id="issueStatusSaving" class="inline-save-status"></span>
+                </div>
+                <div class="info-item issue-select-item">
+                    <strong>Sprint:</strong>
+                    <select id="issueSprintSelect" class="select issue-inline-select">
+                        <option value="">Backlog</option>
+                    </select>
+                    <span id="issueSprintSaving" class="inline-save-status"></span>
+                </div>
                 <div class="info-item branch-info-item">
                     <strong>Branch:</strong>
                     <span id="issueBranch"></span>
@@ -75,6 +93,48 @@
                     <div class="edit-controls" id="branchEditControls" style="display: none;">
                         <button class="btn btn-primary" id="saveBranchBtn">Save</button>
                         <button class="btn btn-secondary" id="cancelBranchBtn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="issue-section">
+                <div class="section-header-inline">
+                    <h3>Planning</h3>
+                    <button class="edit-btn" id="editPlanningBtn">Edit</button>
+                </div>
+                <div id="issuePlanningView" class="planning-grid">
+                    <div class="planning-item"><strong>Priority:</strong> <span id="issuePriority"></span></div>
+                    <div class="planning-item"><strong>Story Points:</strong> <span id="issueStoryPoints"></span></div>
+                    <div class="planning-item planning-item-wide"><strong>Blocked Reason:</strong> <span id="issueBlockedReason"></span></div>
+                    <div class="planning-item planning-item-wide"><strong>Acceptance Criteria:</strong> <div id="issueAcceptanceCriteria" class="planning-text"></div></div>
+                </div>
+                <div id="issuePlanningEditWrap" style="display: none;">
+                    <div class="planning-grid">
+                        <div class="form-group">
+                            <label for="issuePriorityEdit">Priority</label>
+                            <select id="issuePriorityEdit">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="issueStoryPointsEdit">Story Points</label>
+                            <input type="number" id="issueStoryPointsEdit" min="1" max="21" placeholder="e.g. 3">
+                        </div>
+                        <div class="form-group planning-item-wide">
+                            <label for="issueBlockedReasonEdit">Blocked Reason</label>
+                            <input type="text" id="issueBlockedReasonEdit" placeholder="Optional blocker or dependency">
+                        </div>
+                        <div class="form-group planning-item-wide">
+                            <label for="issueAcceptanceCriteriaEdit">Acceptance Criteria</label>
+                            <textarea id="issueAcceptanceCriteriaEdit" rows="5" placeholder="What has to be true for this story to be done?"></textarea>
+                        </div>
+                    </div>
+                    <div class="edit-controls" id="planningEditControls">
+                        <button class="btn btn-primary" id="savePlanningBtn">Save</button>
+                        <button class="btn btn-secondary" id="cancelPlanningBtn">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -104,6 +164,11 @@
                     <button class="btn btn-primary" id="uploadImageBtn" style="display: none;">Upload</button>
                 </div>
                 <div class="upload-progress" id="uploadProgress"></div>
+            </div>
+
+            <div class="issue-section">
+                <h3>Activity</h3>
+                <div id="issueActivity" class="activity-list"></div>
             </div>
 
             <div class="issue-section">
@@ -147,17 +212,44 @@
                     <textarea id="newIssueDescription" rows="5" required></textarea>
                 </div>
                 <div class="form-group">
+                    <label for="newIssueAcceptanceCriteria">Acceptance Criteria</label>
+                    <textarea id="newIssueAcceptanceCriteria" rows="4"></textarea>
+                </div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label for="newIssueAssignedTo">Assign to</label>
+                        <select id="newIssueAssignedTo">
+                            <option value="">Unassigned</option>
+                            <option value="Dwight">Dwight</option>
+                            <option value="Jerry">Jerry</option>
+                            <option value="Resi">Resi</option>
+                            <option value="Druck">Druck</option>
+                            <option value="Aaron">Aaron</option>
+                            <option value="Taylor">Taylor</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="newIssueStoryPoints">Story Points</label>
+                        <input type="number" id="newIssueStoryPoints" min="1" max="21">
+                    </div>
+                    <div class="form-group">
+                        <label for="newIssuePriority">Priority</label>
+                        <select id="newIssuePriority">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="newIssueBlockedReason">Blocked Reason</label>
+                    <input type="text" id="newIssueBlockedReason" placeholder="Optional blocker or dependency">
+                </div>
+                <div class="form-group">
                     <label for="newIssueImages">Attach images (optional)</label>
                     <input type="file" id="newIssueImages" accept="image/*" multiple>
                     <small id="newIssueImagesLabel" class="file-name">No files selected</small>
-                </div>
-                <div class="form-group">
-                    <label for="newIssueAssignedTo">Assign to</label>
-                    <select id="newIssueAssignedTo">
-                        <option value="">Unassigned</option>
-                        <option value="Aaron">Aaron</option>
-                        <option value="Claw">Claw</option>
-                    </select>
                 </div>
                 <div class="form-group">
                     <label for="newIssueSprintId">Assign to sprint</label>
@@ -177,6 +269,7 @@
         </div>
     </div>
 
+    <script src="/static/js/tm_shared.js"></script>
     <script src="/static/js/issue.js"></script>
 </body>
 </html>

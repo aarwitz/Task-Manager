@@ -12,8 +12,8 @@
   .roads,.flows,.packet{display:none}
   .location{position:relative!important;top:auto!important;left:auto!important;right:auto!important;display:grid;justify-items:center;margin:0 auto 24px;width:min(100%,340px)}
   .meetings{margin-bottom:18px}
-  .jerry{margin-top:6px;margin-bottom:22px}
-  .aaron,.taylor{margin-bottom:20px}
+  .Jerry{margin-top:6px;margin-bottom:22px}
+  .Aaron,.Taylor{margin-bottom:20px}
   .tile,.tile.hub{transform:none!important}
   .tile{width:148px;height:108px}
   .tile.hub{width:180px;height:132px}
@@ -25,7 +25,7 @@
   .tower{font-size:38px;left:52px;bottom:28px}
   .map-label{position:relative;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;white-space:normal;max-width:100%;width:100%;text-align:center;font-size:14px;padding:10px 12px;margin-top:10px;border-width:3px;box-shadow:0 4px 0 rgba(31,69,106,.14)}
   .map-label.big{font-size:14px}
-  .jerry .map-label{font-size:15px}
+  .Jerry .map-label{font-size:15px}
   .modal{width:min(94vw,380px);padding:16px 14px 14px;gap:12px}
   .modal-icon{width:52px;height:52px;flex-basis:52px;font-size:28px}
   .modal-body{padding-right:18px}
