@@ -33,7 +33,6 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         description: document.getElementById('issueDescription').value,
         created_by: username,
         assigned_to: document.getElementById('issueAssignedTo').value || null,
-        priority: document.getElementById('issuePriority')?.value || 'medium',
         acceptance_criteria: document.getElementById('issueAcceptanceCriteria')?.value.trim() || null,
         story_points: document.getElementById('issueStoryPoints')?.value ? Number(document.getElementById('issueStoryPoints').value) : null,
         blocked_reason: document.getElementById('issueBlockedReason')?.value.trim() || null
@@ -97,7 +96,6 @@ async function doSearch() {
     const assignedTo = document.getElementById('filterAssignedTo').value;
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
-    const priority = document.getElementById('filterPriority').value;
     const minPoints = document.getElementById('filterMinPoints').value;
     const maxPoints = document.getElementById('filterMaxPoints').value;
     const staleDays = document.getElementById('filterStaleDays').value;
@@ -114,7 +112,6 @@ async function doSearch() {
     if (assignedTo) params.set('assigned_to', assignedTo);
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
-    if (priority) params.set('priority', priority);
     if (minPoints) params.set('min_story_points', minPoints);
     if (maxPoints) params.set('max_story_points', maxPoints);
     if (staleDays) params.set('stale_days', staleDays);
@@ -158,7 +155,7 @@ document.getElementById('searchInput').addEventListener('keydown', (e) => {
     }
 });
 document.getElementById('searchBtn').addEventListener('click', doSearch);
-['filterSearchIn', 'filterStatus', 'filterSprint', 'filterUser', 'filterAssignedTo', 'filterDateFrom', 'filterDateTo', 'filterPriority', 'filterMinPoints', 'filterMaxPoints', 'filterStaleDays', 'filterBlockedOnly', 'filterNeedsReview'].forEach(id => {
+['filterSearchIn', 'filterStatus', 'filterSprint', 'filterUser', 'filterAssignedTo', 'filterDateFrom', 'filterDateTo', 'filterMinPoints', 'filterMaxPoints', 'filterStaleDays', 'filterBlockedOnly', 'filterNeedsReview'].forEach(id => {
     const element = document.getElementById(id);
     const eventName = element?.type === 'checkbox' ? 'change' : 'change';
     element?.addEventListener(eventName, doSearch);
@@ -172,7 +169,6 @@ document.getElementById('clearFiltersBtn').addEventListener('click', () => {
     document.getElementById('filterAssignedTo').value = '';
     document.getElementById('filterDateFrom').value = '';
     document.getElementById('filterDateTo').value = '';
-    document.getElementById('filterPriority').value = '';
     document.getElementById('filterMinPoints').value = '';
     document.getElementById('filterMaxPoints').value = '';
     document.getElementById('filterStaleDays').value = '';

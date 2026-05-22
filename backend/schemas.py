@@ -23,7 +23,6 @@ class IssueCreate(BaseModel):
     repo_slug: Optional[str] = None
     acceptance_criteria: Optional[str] = None
     story_points: Optional[int] = None
-    priority: Optional[str] = "medium"
     blocked_reason: Optional[str] = None
 
 class IssueUpdate(BaseModel):
@@ -36,7 +35,6 @@ class IssueUpdate(BaseModel):
     branch: Optional[str] = None
     repo_slug: Optional[str] = None
     story_points: Optional[int] = None
-    priority: Optional[str] = None
     blocked_reason: Optional[str] = None
     updated_by: Optional[str] = None
 
@@ -92,7 +90,6 @@ class IssueResponse(BaseModel):
     branch: Optional[str] = None
     repo_slug: Optional[str] = None
     story_points: Optional[int] = None
-    priority: Optional[str] = None
     blocked_reason: Optional[str] = None
     comments: List[CommentResponse] = []
     images: List[IssueImageResponse] = []

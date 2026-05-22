@@ -1200,26 +1200,14 @@ body {
     opacity: 0.85;
 }
 
-.issue-pill.blocked,
-.priority-critical {
+.issue-pill.blocked {
     background: #FFEBE6;
     color: #BF2600;
 }
 
-.issue-pill.review,
-.priority-high {
+.issue-pill.review {
     background: #FFF0B3;
     color: #172B4D;
-}
-
-.priority-medium {
-    background: #DEEBFF;
-    color: #0052CC;
-}
-
-.priority-low {
-    background: #E3FCEF;
-    color: #006644;
 }
 
 .issue-pill.duplicate {

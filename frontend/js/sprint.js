@@ -68,7 +68,6 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         repo_slug: document.getElementById('issueRepoSlug')?.value.trim() || null,
         acceptance_criteria: document.getElementById('issueAcceptanceCriteria').value.trim() || null,
         story_points: document.getElementById('issueStoryPoints').value ? Number(document.getElementById('issueStoryPoints').value) : null,
-        priority: document.getElementById('issuePriority').value,
         blocked_reason: document.getElementById('issueBlockedReason').value.trim() || null
     };
     try {
