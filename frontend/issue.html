@@ -112,22 +112,12 @@
                     <button class="edit-btn" id="editPlanningBtn">Edit</button>
                 </div>
                 <div id="issuePlanningView" class="planning-grid">
-                    <div class="planning-item"><strong>Priority:</strong> <span id="issuePriority"></span></div>
                     <div class="planning-item"><strong>Story Points:</strong> <span id="issueStoryPoints"></span></div>
                     <div class="planning-item planning-item-wide"><strong>Blocked Reason:</strong> <span id="issueBlockedReason"></span></div>
                     <div class="planning-item planning-item-wide"><strong>Acceptance Criteria:</strong> <div id="issueAcceptanceCriteria" class="planning-text"></div></div>
                 </div>
                 <div id="issuePlanningEditWrap" style="display: none;">
                     <div class="planning-grid">
-                        <div class="form-group">
-                            <label for="issuePriorityEdit">Priority</label>
-                            <select id="issuePriorityEdit">
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="critical">Critical</option>
-                            </select>
-                        </div>
                         <div class="form-group">
                             <label for="issueStoryPointsEdit">Story Points</label>
                             <input type="number" id="issueStoryPointsEdit" min="1" max="21" placeholder="e.g. 3">
@@ -240,15 +230,6 @@
                     <div class="form-group">
                         <label for="newIssueStoryPoints">Story Points</label>
                         <input type="number" id="newIssueStoryPoints" min="1" max="21">
-                    </div>
-                    <div class="form-group">
-                        <label for="newIssuePriority">Priority</label>
-                        <select id="newIssuePriority">
-                            <option value="low">Low</option>
-                            <option value="medium" selected>Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                        </select>
                     </div>
                 </div>
                 <div class="form-group">

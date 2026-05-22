@@ -35,9 +35,6 @@ def run_safe_migrations():
             conn.execute(sql_text("UPDATE issues SET updated_at = created_at WHERE updated_at IS NULL"))
         if "story_points" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN story_points INTEGER"))
-        if "priority" not in columns:
-            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN priority VARCHAR DEFAULT 'medium'"))
-            conn.execute(sql_text("UPDATE issues SET priority = 'medium' WHERE priority IS NULL"))
         if "blocked_reason" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN blocked_reason TEXT"))
 
@@ -140,13 +137,6 @@ def normalize_optional_text(value: Optional[str]) -> Optional[str]:
     return normalized or None
 
 
-def normalize_priority(value: Optional[str]) -> str:
-    priority = (value or "medium").strip().lower()
-    if priority not in models.PRIORITY_OPTIONS:
-        raise HTTPException(status_code=400, detail=f"Invalid priority. Allowed: {', '.join(sorted(models.PRIORITY_OPTIONS))}")
-    return priority
-
-
 def normalize_status(value: Optional[str]) -> str:
     status_value = (value or "to_do").strip().lower()
     if status_value not in models.STATUS_OPTIONS:
@@ -243,7 +233,6 @@ def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
         branch=normalize_optional_text(issue.branch),
         repo_slug=normalize_optional_text(issue.repo_slug),
         story_points=issue.story_points,
-        priority=normalize_priority(issue.priority),
         blocked_reason=normalize_optional_text(issue.blocked_reason),
         status="blocked" if normalize_optional_text(issue.blocked_reason) else "to_do",
         updated_at=datetime.now(),
@@ -277,7 +266,6 @@ def search_issues(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     assigned_to: Optional[str] = None,
-    priority: Optional[str] = None,
     min_story_points: Optional[int] = None,
     max_story_points: Optional[int] = None,
     blocked_only: bool = False,
@@ -337,9 +325,6 @@ def search_issues(
     if assigned_to:
         query = query.filter(models.Issue.assigned_to == validate_tm_user(assigned_to, field_name="assigned_to"))
 
-    if priority:
-        query = query.filter(models.Issue.priority == normalize_priority(priority))
-
     if min_story_points is not None:
         query = query.filter(models.Issue.story_points >= min_story_points)
 
@@ -398,8 +383,6 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
             value = normalize_optional_text(value)
         elif field == "assigned_to":
             value = validate_tm_user(value, field_name="assigned_to", allow_blank=True)
-        elif field == "priority":
-            value = normalize_priority(value)
         elif field == "status":
             value = normalize_status(value)
         normalized_updates[field] = value

@@ -7,13 +7,6 @@ window.TM_SHARED = (() => {
     { value: 'blocked', label: 'Blocked' },
     { value: 'done', label: 'Done' }
   ];
-  const PRIORITY_OPTIONS = [
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'critical', label: 'Critical' }
-  ];
-
   function escapeHtml(text) {
     return String(text ?? '')
       .replace(/&/g, '&amp;')
@@ -25,10 +18,6 @@ window.TM_SHARED = (() => {
 
   function formatStatus(status) {
     return String(status || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  }
-
-  function formatPriority(priority) {
-    return String(priority || 'medium').replace(/\b\w/g, l => l.toUpperCase());
   }
 
   function isBlocked(issue) {
@@ -115,7 +104,6 @@ window.TM_SHARED = (() => {
   }
 
   function renderIssueCard(issue, context = {}) {
-    const priority = formatPriority(issue.priority || 'medium');
     const staleDays = getDaysStale(issue);
     const staleLabel = staleDays >= 3 ? `Stale ${staleDays}d` : `Updated ${new Date(getUpdatedAt(issue)).toLocaleDateString()}`;
     const blockedPill = isBlocked(issue) ? `<span class="issue-pill blocked">Blocked${issue.blocked_reason ? `: ${escapeHtml(issue.blocked_reason)}` : ''}</span>` : '';
@@ -134,7 +122,7 @@ window.TM_SHARED = (() => {
           <span class="status-badge ${escapeHtml(issue.status)}">${formatStatus(issue.status)}</span>
         </div>
         <div class="issue-card-description">${escapeHtml(issue.description || '').slice(0, 220)}${(issue.description || '').length > 220 ? '…' : ''}</div>
-        <div class="issue-pills">${pointsPill}<span class="issue-pill priority-${escapeHtml(issue.priority || 'medium')}">${priority}</span>${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
+        <div class="issue-pills">${pointsPill}${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
         <div class="issue-card-meta issue-card-footer">
           <span>${activitySummary(issue)}</span>
           <span class="inline-save-status" data-save-status="${issue.id}"></span>
@@ -201,10 +189,8 @@ window.TM_SHARED = (() => {
   return {
     ASSIGNEE_OPTIONS,
     STATUS_OPTIONS,
-    PRIORITY_OPTIONS,
     escapeHtml,
     formatStatus,
-    formatPriority,
     fetchJson,
     patchIssue,
     fetchSprints,

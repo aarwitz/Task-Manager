@@ -4,8 +4,6 @@ from datetime import datetime
 from database import Base
 
 STATUS_OPTIONS = {"to_do", "in_progress", "in_review", "done", "blocked"}
-PRIORITY_OPTIONS = {"low", "medium", "high", "critical"}
-
 class User(Base):
     __tablename__ = "users"
     
@@ -29,7 +27,6 @@ class Issue(Base):
     branch = Column(String, nullable=True)
     repo_slug = Column(String, nullable=True)
     story_points = Column(Integer, nullable=True)
-    priority = Column(String, default="medium")
     blocked_reason = Column(Text, nullable=True)
     
     comments = relationship("Comment", back_populates="issue", cascade="all, delete-orphan")

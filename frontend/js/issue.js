@@ -4,7 +4,7 @@ if (!username) {
 }
 
 document.getElementById('currentUser').textContent = username;
-const { escapeHtml, formatStatus, formatPriority, fetchJson, buildSprintSelectOptions, fetchSprints } = window.TM_SHARED;
+const { escapeHtml, formatStatus, fetchJson, buildSprintSelectOptions, fetchSprints } = window.TM_SHARED;
 let currentIssue = null;
 let issueSprints = [];
 const DEFAULT_GITHUB_REPO = 'aarwitz/Task-Manager';
@@ -117,7 +117,6 @@ function renderActivity(events = []) {
 }
 
 function renderPlanning(issue) {
-    document.getElementById('issuePriority').textContent = formatPriority(issue.priority || 'medium');
     document.getElementById('issueStoryPoints').textContent = issue.story_points != null ? String(issue.story_points) : 'None';
     document.getElementById('issueBlockedReason').textContent = issue.blocked_reason || 'None';
     document.getElementById('issueAcceptanceCriteria').innerHTML = issue.acceptance_criteria ? renderTextWithLineBreaks(issue.acceptance_criteria) : '<span class="muted-text">None</span>';
@@ -170,7 +169,6 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         repo_slug: document.getElementById('newIssueRepoSlug')?.value.trim() || null,
         acceptance_criteria: document.getElementById('newIssueAcceptanceCriteria').value.trim() || null,
         story_points: document.getElementById('newIssueStoryPoints').value ? Number(document.getElementById('newIssueStoryPoints').value) : null,
-        priority: document.getElementById('newIssuePriority').value,
         blocked_reason: document.getElementById('newIssueBlockedReason').value.trim() || null
     };
     try {
@@ -397,7 +395,6 @@ document.getElementById('editPlanningBtn').addEventListener('click', () => {
     document.getElementById('issuePlanningView').style.display = 'none';
     document.getElementById('issuePlanningEditWrap').style.display = 'block';
     document.getElementById('editPlanningBtn').style.display = 'none';
-    document.getElementById('issuePriorityEdit').value = currentIssue?.priority || 'medium';
     document.getElementById('issueStoryPointsEdit').value = currentIssue?.story_points ?? '';
     document.getElementById('issueBlockedReasonEdit').value = currentIssue?.blocked_reason || '';
     document.getElementById('issueAcceptanceCriteriaEdit').value = currentIssue?.acceptance_criteria || '';
@@ -405,7 +402,6 @@ document.getElementById('editPlanningBtn').addEventListener('click', () => {
 document.getElementById('cancelPlanningBtn').addEventListener('click', cancelPlanningEdit);
 document.getElementById('savePlanningBtn').addEventListener('click', async () => {
     const payload = {
-        priority: document.getElementById('issuePriorityEdit').value,
         story_points: document.getElementById('issueStoryPointsEdit').value ? Number(document.getElementById('issueStoryPointsEdit').value) : null,
         blocked_reason: document.getElementById('issueBlockedReasonEdit').value.trim() || null,
         acceptance_criteria: document.getElementById('issueAcceptanceCriteriaEdit').value.trim() || null
