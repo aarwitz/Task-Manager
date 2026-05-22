@@ -5,6 +5,7 @@ if (!username) {
 
 document.getElementById('currentUser').textContent = username;
 const { fetchJson, fetchSprints, buildSprintSelectOptions, renderIssueCard, attachInlineIssueEditors } = window.TM_SHARED;
+const { submitIssueForm } = window.TMIssueForm;
 let currentSprint = null;
 let currentSprintIssues = [];
 let sprintList = [];
@@ -58,29 +59,19 @@ async function uploadIssueImages(issueId, files) {
 
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const payload = {
-        title: document.getElementById('issueTitle').value,
-        description: document.getElementById('issueDescription').value,
-        created_by: username,
-        assigned_to: document.getElementById('issueAssignedTo').value || null,
-        sprint_id: issueSprintSelect?.value ? Number(issueSprintSelect.value) : null,
-        branch: document.getElementById('issueBranch').value.trim() || null,
-        repo_slug: document.getElementById('issueRepoSlug')?.value.trim() || null,
-        acceptance_criteria: document.getElementById('issueAcceptanceCriteria').value.trim() || null,
-        story_points: document.getElementById('issueStoryPoints').value ? Number(document.getElementById('issueStoryPoints').value) : null,
-        blocked_reason: document.getElementById('issueBlockedReason').value.trim() || null
-    };
     try {
-        const createdIssue = await fetchJson('/api/issues', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        await submitIssueForm({
+            form: e.target,
+            username,
+            fetchJson,
+            uploadImages: uploadIssueImages,
+            onCreated: async () => {
+                createIssueModal.classList.remove('show');
+                e.target.reset();
+                if (issueImagesLabel) issueImagesLabel.textContent = 'No files selected';
+                if (currentSprint) await loadSprintIssues(currentSprint.id);
+            }
         });
-        await uploadIssueImages(createdIssue.id, issueImagesInput?.files);
-        createIssueModal.classList.remove('show');
-        document.getElementById('createIssueForm').reset();
-        if (issueImagesLabel) issueImagesLabel.textContent = 'No files selected';
-        if (currentSprint) await loadSprintIssues(currentSprint.id);
     } catch (error) {
         console.error('Error:', error);
         alert(error.message || 'An error occurred');
@@ -216,10 +207,10 @@ async function handleDrop(e) {
 
 document.getElementById('endSprintBtn').addEventListener('click', async () => {
     if (!currentSprint) return;
-    if (!confirm('End this sprint? All issues will be moved back to the backlog.')) return;
+    if (!confirm('End this sprint? Issues will stay assigned to this sprint, but the sprint will be marked inactive.')) return;
     try {
         await fetchJson(`/api/sprints/${currentSprint.id}/end`, { method: 'POST' });
-        alert('Sprint ended! All issues moved to backlog.');
+        alert('Sprint ended. Its issues remain assigned for history and review.');
         window.location.href = '/static/backlog.html';
     } catch (error) {
         console.error('Error:', error);

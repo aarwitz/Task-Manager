@@ -5,6 +5,7 @@ if (!username) {
 
 document.getElementById('currentUser').textContent = username;
 const { fetchJson, fetchSprints, renderIssueCard, findDuplicateCandidates } = window.TM_SHARED;
+const { submitIssueForm } = window.TMIssueForm;
 let searchTimeout = null;
 let searchSprints = [];
 let searchSprintMap = new Map();
@@ -28,24 +29,17 @@ window.addEventListener('click', (e) => {
 
 document.getElementById('createIssueForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const payload = {
-        title: document.getElementById('issueTitle').value,
-        description: document.getElementById('issueDescription').value,
-        created_by: username,
-        assigned_to: document.getElementById('issueAssignedTo').value || null,
-        acceptance_criteria: document.getElementById('issueAcceptanceCriteria')?.value.trim() || null,
-        story_points: document.getElementById('issueStoryPoints')?.value ? Number(document.getElementById('issueStoryPoints').value) : null,
-        blocked_reason: document.getElementById('issueBlockedReason')?.value.trim() || null
-    };
     try {
-        await fetchJson('/api/issues', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        await submitIssueForm({
+            form: e.target,
+            username,
+            fetchJson,
+            onCreated: async () => {
+                createIssueModal.classList.remove('show');
+                e.target.reset();
+                doSearch();
+            }
         });
-        createIssueModal.classList.remove('show');
-        document.getElementById('createIssueForm').reset();
-        doSearch();
     } catch (error) {
         console.error('Error:', error);
         alert(error.message || 'An error occurred');

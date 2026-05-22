@@ -134,20 +134,20 @@
             <form id="createIssueForm">
                 <div class="form-group">
                     <label for="issueTitle">Title *</label>
-                    <input type="text" id="issueTitle" required>
+                    <input type="text" id="issueTitle" name="title" required>
                 </div>
                 <div class="form-group">
                     <label for="issueDescription">Description *</label>
-                    <textarea id="issueDescription" rows="5" required></textarea>
+                    <textarea id="issueDescription" name="description" rows="5" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="issueAcceptanceCriteria">Acceptance Criteria</label>
-                    <textarea id="issueAcceptanceCriteria" rows="4"></textarea>
+                    <textarea id="issueAcceptanceCriteria" name="acceptance_criteria" rows="4"></textarea>
                 </div>
                 <div class="form-row form-row-3">
                     <div class="form-group">
                         <label for="issueAssignedTo">Assign to</label>
-                        <select id="issueAssignedTo">
+                        <select id="issueAssignedTo" name="assigned_to">
                             <option value="">Unassigned</option>
                             <option value="Dwight">Dwight</option>
                             <option value="Jerry">Jerry</option>
@@ -159,12 +159,12 @@
                     </div>
                     <div class="form-group">
                         <label for="issueStoryPoints">Story Points</label>
-                        <input type="number" id="issueStoryPoints" min="1" max="21">
+                        <input type="number" id="issueStoryPoints" name="story_points" min="1" max="21">
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="issueBlockedReason">Blocked Reason</label>
-                    <input type="text" id="issueBlockedReason" placeholder="Optional blocker or dependency">
+                    <input type="text" id="issueBlockedReason" name="blocked_reason" placeholder="Optional blocker or dependency">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
@@ -175,6 +175,7 @@
     </div>
 
     <script src="/static/js/tm_shared.js"></script>
+    <script src="/static/js/tm_issue_form.js"></script>
     <script src="/static/js/search.js"></script>
 </body>
 </html>

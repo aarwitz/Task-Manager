@@ -4,12 +4,13 @@ A simple, lightweight task management system designed for small teams. Think JIR
 
 ## Features
 
-- **Simple Login** - Just a username, no passwords needed
-- **Issue Creation** - Create and track issues with title, description, and automatic ID assignment
-- **Backlog Management** - View all unassigned issues, sort by status or date
+- **Simple Login** - Lightweight username-based access for trusted RSL VPN users
+- **Issue Creation** - Create and track issues with title, description, story points, branch, repo slug, blockers, and acceptance criteria
+- **Backlog Management** - View all unassigned issues, sort by status or recency
 - **Sprint Planning** - Create sprints and assign issues to them
-- **Kanban Board** - Drag and drop issues between To Do, In Progress, In Review, and Done
-- **Comments** - Discuss issues with your team through comments
+- **Kanban Board** - Drag and drop issues between To Do, In Progress, In Review, Blocked, and Done
+- **Comments and Images** - Discuss issues and upload screenshots/images
+- **Activity History** - Field-level audit trail on issue updates
 - **Persistent Storage** - All data saved locally using SQLite
 
 ## Tech Stack
@@ -50,7 +51,7 @@ chmod +x start.sh
    - Windows: `ipconfig`
    - Mac: `ifconfig | grep inet`
 
-3. Login with any username (it will be created automatically if it doesn't exist)
+3. Login with an allowed Task Manager username
 
 ## Stopping and Restarting After Changes
 
@@ -122,8 +123,8 @@ If you start the app yourself with `python main.py` or `./start.sh`, then you ca
 
 - Only one sprint can be active at a time
 - Starting a new sprint will end the current one
-- When you end a sprint, all issues (including completed ones) move back to the backlog
-- You can track issue progress through the 4 columns: To Do, In Progress, In Review, Done
+- When you end a sprint, issues remain assigned to that sprint for history and review
+- You can track issue progress through the 5 columns: To Do, In Progress, In Review, Blocked, Done
 
 ### Commenting on Issues
 
@@ -158,27 +159,24 @@ Task-Manager/
 ## Network Access
 
 The server is configured to listen on `0.0.0.0:8000`, which means:
-- Anyone on your local network can access it
-- They just need to navigate to your computer's local IP address on port 8000
-- No authentication beyond the username is required
-- Perfect for a small team working on the same WiFi
+- Anyone on the allowed network path can access it
+- They just need to navigate to your host on port 8000
+- Current access is lightweight and intended for trusted internal use only
+- Recommended deployment model is behind the RSL VPN or another trusted private network
 
 ## Notes
 
 - All data is stored locally in `taskmanager.db`
 - Issue IDs are monotonically increasing and never reused
-- No password authentication - this is designed for trusted small teams
-- The application is lightweight and can handle plenty of issues with your available storage and RAM
+- The current auth model is intentionally lightweight and should be treated as internal-only
+- Story points are the only sizing measure used in the product
+- The application is lightweight and can handle small-team usage comfortably, but changes should be validated before broader onboarding
 
-## Future Enhancements (Optional)
+## Current Operational Notes
 
-Feel free to add:
-- File/image attachments to issues
-- Issue priority levels
-- Time tracking
-- Sprint velocity metrics
-- Issue filtering and search
-- User avatars
-- Email notifications
+- Images are supported on issue descriptions, attachments, and comments
+- Branch links can store per-issue repo context via `repo_slug`
+- Activity history is recorded for issue creation, comments, and field updates
+- The factory/miniapp surfaces are experimental and should be treated as secondary interfaces until explicitly hardened
 
 Enjoy staying organized! 🤖

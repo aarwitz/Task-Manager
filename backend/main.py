@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query, Request, UploadFile, File
+from pydantic import ValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ import os
 import uuid
 import shutil
 import re
+import imghdr
 
 import models
 import schemas
@@ -17,6 +19,10 @@ from database import engine, get_db
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"jpeg": ".jpg", "png": ".png", "gif": ".gif", "webp": ".webp"}
+
 
 def run_safe_migrations():
     """Apply additive SQLite migrations without deleting existing data."""
@@ -65,6 +71,44 @@ def run_safe_migrations():
 
 
 run_safe_migrations()
+
+
+def cleanup_priority_column_if_present():
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(issues)").fetchall()}
+        if "priority" not in columns:
+            return
+        conn.execute(sql_text("""
+            CREATE TABLE IF NOT EXISTS issues_new (
+                id INTEGER PRIMARY KEY,
+                title VARCHAR,
+                description TEXT,
+                status VARCHAR,
+                sprint_id INTEGER,
+                created_at DATETIME,
+                created_by VARCHAR,
+                assigned_to VARCHAR,
+                branch VARCHAR,
+                acceptance_criteria TEXT,
+                updated_at DATETIME,
+                story_points INTEGER,
+                blocked_reason TEXT,
+                repo_slug VARCHAR,
+                FOREIGN KEY(sprint_id) REFERENCES sprints (id)
+            )
+        """))
+        conn.execute(sql_text("""
+            INSERT INTO issues_new (id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, updated_at, story_points, blocked_reason, repo_slug)
+            SELECT id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, updated_at, story_points, blocked_reason, repo_slug
+            FROM issues
+        """))
+        conn.execute(sql_text("DROP TABLE issues"))
+        conn.execute(sql_text("ALTER TABLE issues_new RENAME TO issues"))
+        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS ix_issues_id ON issues (id)"))
+        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS ix_issues_title ON issues (title)"))
+
+
+cleanup_priority_column_if_present()
 
 CANONICAL_TM_USERS = ["Dwight", "Jerry", "Resi", "Druck", "Aaron", "Taylor"]
 LOGIN_ALLOWED_USERS = CANONICAL_TM_USERS.copy()
@@ -144,6 +188,33 @@ def normalize_status(value: Optional[str]) -> str:
     return status_value
 
 
+def validate_story_points(value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+    if value < 1 or value > 21:
+        raise HTTPException(status_code=400, detail="story_points must be between 1 and 21")
+    return value
+
+
+def parse_issue_create_form(form) -> schemas.IssueCreate:
+    payload = {
+        "title": form.get("title"),
+        "description": form.get("description"),
+        "created_by": form.get("created_by"),
+        "assigned_to": form.get("assigned_to") or None,
+        "acceptance_criteria": form.get("acceptance_criteria") or None,
+        "blocked_reason": form.get("blocked_reason") or None,
+        "branch": form.get("branch") or None,
+        "repo_slug": form.get("repo_slug") or None,
+        "story_points": int(form.get("story_points")) if form.get("story_points") not in (None, "") else None,
+        "sprint_id": int(form.get("sprint_id")) if form.get("sprint_id") not in (None, "") else None,
+    }
+    try:
+        return schemas.IssueCreate(**payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 def log_issue_activity(db: Session, issue_id: int, event_type: str, actor: Optional[str] = None, field_name: Optional[str] = None, old_value: Optional[object] = None, new_value: Optional[object] = None):
     activity = models.IssueActivity(
         issue_id=issue_id,
@@ -208,8 +279,16 @@ def list_users(db: Session = Depends(get_db)):
     return db.query(models.User).filter(models.User.username.in_(CANONICAL_TM_USERS)).order_by(models.User.username).all()
 
 @app.post("/api/issues", response_model=schemas.IssueResponse, status_code=status.HTTP_201_CREATED)
-def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
+async def create_issue(request: Request, db: Session = Depends(get_db)):
     """Create a new issue"""
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        issue = schemas.IssueCreate(**(await request.json()))
+    elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        issue = parse_issue_create_form(await request.form())
+    else:
+        raise HTTPException(status_code=415, detail="Unsupported content type")
+
     target_sprint_id = issue.sprint_id
     if target_sprint_id is None:
         active_sprint = db.query(models.Sprint).filter(models.Sprint.is_active == True).first()
@@ -232,7 +311,7 @@ def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
         sprint_id=target_sprint_id,
         branch=normalize_optional_text(issue.branch),
         repo_slug=normalize_optional_text(issue.repo_slug),
-        story_points=issue.story_points,
+        story_points=validate_story_points(issue.story_points),
         blocked_reason=normalize_optional_text(issue.blocked_reason),
         status="blocked" if normalize_optional_text(issue.blocked_reason) else "to_do",
         updated_at=datetime.now(),
@@ -385,6 +464,8 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
             value = validate_tm_user(value, field_name="assigned_to", allow_blank=True)
         elif field == "status":
             value = normalize_status(value)
+        if field == "story_points":
+            value = validate_story_points(value)
         normalized_updates[field] = value
 
     if "sprint_id" in normalized_updates and normalized_updates["sprint_id"] is not None:
@@ -453,7 +534,7 @@ def add_comment(issue_id: int, comment: schemas.CommentCreate, db: Session = Dep
     return db_comment
 
 @app.post("/api/issues/{issue_id}/images", response_model=schemas.IssueImageResponse)
-def upload_image(
+async def upload_image(
     issue_id: int,
     source_type: str = Query("issue", description="issue, description, or comment"),
     comment_id: Optional[int] = Query(None),
@@ -482,23 +563,29 @@ def upload_image(
     else:
         comment_id = None
     
-    # Validate file type
-    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-    file_ext = os.path.splitext(file.filename)[1].lower()
-    if file_ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: jpg, jpeg, png, gif, webp")
-    
-    # Create uploads directory if it doesn't exist
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file upload")
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File too large. Max 10 MB")
+
+    detected_type = imghdr.what(None, h=file_bytes)
+    if detected_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid image content. Allowed: jpg, png, gif, webp")
+
+    original_ext = os.path.splitext(file.filename or "")[1].lower()
+    normalized_ext = ALLOWED_IMAGE_TYPES[detected_type]
+    if original_ext and original_ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+        raise HTTPException(status_code=400, detail="Invalid file extension. Allowed: jpg, jpeg, png, gif, webp")
+
     uploads_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "uploads")
     os.makedirs(uploads_path, exist_ok=True)
-    
-    # Generate unique filename
-    unique_filename = f"{uuid.uuid4()}{file_ext}"
+
+    unique_filename = f"{uuid.uuid4()}{normalized_ext}"
     file_path = os.path.join(uploads_path, unique_filename)
-    
-    # Save file
+
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        buffer.write(file_bytes)
     
     uploaded_by = validate_tm_user(uploaded_by, field_name="uploaded_by", allow_blank=True)
 
