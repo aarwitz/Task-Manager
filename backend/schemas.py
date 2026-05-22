@@ -20,6 +20,7 @@ class IssueCreate(BaseModel):
     assigned_to: Optional[str] = None
     sprint_id: Optional[int] = None
     branch: Optional[str] = None
+    repo_slug: Optional[str] = None
     acceptance_criteria: Optional[str] = None
     story_points: Optional[int] = None
     priority: Optional[str] = "medium"
@@ -33,6 +34,7 @@ class IssueUpdate(BaseModel):
     sprint_id: Optional[int] = None
     assigned_to: Optional[str] = None
     branch: Optional[str] = None
+    repo_slug: Optional[str] = None
     story_points: Optional[int] = None
     priority: Optional[str] = None
     blocked_reason: Optional[str] = None
@@ -88,6 +90,7 @@ class IssueResponse(BaseModel):
     created_by: str
     assigned_to: Optional[str] = None
     branch: Optional[str] = None
+    repo_slug: Optional[str] = None
     story_points: Optional[int] = None
     priority: Optional[str] = None
     blocked_reason: Optional[str] = None

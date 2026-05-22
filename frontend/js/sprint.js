@@ -65,6 +65,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         assigned_to: document.getElementById('issueAssignedTo').value || null,
         sprint_id: issueSprintSelect?.value ? Number(issueSprintSelect.value) : null,
         branch: document.getElementById('issueBranch').value.trim() || null,
+        repo_slug: document.getElementById('issueRepoSlug')?.value.trim() || null,
         acceptance_criteria: document.getElementById('issueAcceptanceCriteria').value.trim() || null,
         story_points: document.getElementById('issueStoryPoints').value ? Number(document.getElementById('issueStoryPoints').value) : null,
         priority: document.getElementById('issuePriority').value,

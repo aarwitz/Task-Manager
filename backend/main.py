@@ -26,6 +26,8 @@ def run_safe_migrations():
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN assigned_to VARCHAR"))
         if "branch" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN branch VARCHAR"))
+        if "repo_slug" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN repo_slug VARCHAR"))
         if "acceptance_criteria" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN acceptance_criteria TEXT"))
         if "updated_at" not in columns:
@@ -239,6 +241,7 @@ def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
         assigned_to=assigned_to,
         sprint_id=target_sprint_id,
         branch=normalize_optional_text(issue.branch),
+        repo_slug=normalize_optional_text(issue.repo_slug),
         story_points=issue.story_points,
         priority=normalize_priority(issue.priority),
         blocked_reason=normalize_optional_text(issue.blocked_reason),
@@ -391,7 +394,7 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
 
     normalized_updates = {}
     for field, value in update_data.items():
-        if field in {"branch", "acceptance_criteria", "blocked_reason"}:
+        if field in {"branch", "repo_slug", "acceptance_criteria", "blocked_reason"}:
             value = normalize_optional_text(value)
         elif field == "assigned_to":
             value = validate_tm_user(value, field_name="assigned_to", allow_blank=True)

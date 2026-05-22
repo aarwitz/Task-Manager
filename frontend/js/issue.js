@@ -7,7 +7,7 @@ document.getElementById('currentUser').textContent = username;
 const { escapeHtml, formatStatus, formatPriority, fetchJson, buildSprintSelectOptions, fetchSprints } = window.TM_SHARED;
 let currentIssue = null;
 let issueSprints = [];
-const GITHUB_REPO = 'aarwitz/Task-Manager';
+const DEFAULT_GITHUB_REPO = 'aarwitz/Task-Manager';
 const urlParams = new URLSearchParams(window.location.search);
 const issueId = urlParams.get('id');
 if (!issueId) {
@@ -15,14 +15,18 @@ if (!issueId) {
     window.location.href = '/static/backlog.html';
 }
 
-function getBranchGitHubUrl(branch) {
-    if (!branch) return null;
-    return `https://github.com/${GITHUB_REPO}/tree/${encodeURIComponent(branch)}`;
+function getIssueRepoSlug(issue) {
+    return issue?.repo_slug || DEFAULT_GITHUB_REPO;
 }
-function renderBranchDisplay(branch) {
-    if (!branch) return 'None';
-    const url = getBranchGitHubUrl(branch);
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; border-bottom: 1px solid currentColor; cursor: pointer;">${escapeHtml(branch)}</a>`;
+function getBranchGitHubUrl(issue) {
+    if (!issue?.branch) return null;
+    return `https://github.com/${getIssueRepoSlug(issue)}/tree/${encodeURIComponent(issue.branch)}`;
+}
+function renderBranchDisplay(issue) {
+    if (!issue?.branch) return 'None';
+    const url = getBranchGitHubUrl(issue);
+    const repoHint = escapeHtml(getIssueRepoSlug(issue));
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; border-bottom: 1px solid currentColor; cursor: pointer;">${escapeHtml(issue.branch)}</a> <span class="muted-text" style="margin-left:6px;">(${repoHint})</span>`;
 }
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -161,6 +165,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         assigned_to: document.getElementById('newIssueAssignedTo').value || null,
         sprint_id: newIssueSprintSelect.value ? Number(newIssueSprintSelect.value) : null,
         branch: document.getElementById('newIssueBranch').value.trim() || null,
+        repo_slug: document.getElementById('newIssueRepoSlug')?.value.trim() || null,
         acceptance_criteria: document.getElementById('newIssueAcceptanceCriteria').value.trim() || null,
         story_points: document.getElementById('newIssueStoryPoints').value ? Number(document.getElementById('newIssueStoryPoints').value) : null,
         priority: document.getElementById('newIssuePriority').value,
@@ -194,7 +199,7 @@ async function loadIssue() {
         document.getElementById('issueCreated').textContent = new Date(issue.created_at).toLocaleString();
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
         document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
-        document.getElementById('issueBranch').innerHTML = renderBranchDisplay(issue.branch);
+        document.getElementById('issueBranch').innerHTML = renderBranchDisplay(issue);
         const statusBadge = document.getElementById('issueStatus');
         statusBadge.textContent = formatStatus(issue.status);
         statusBadge.className = `status-badge ${issue.status}`;
@@ -376,7 +381,7 @@ document.getElementById('cancelBranchBtn').addEventListener('click', cancelBranc
 document.getElementById('saveBranchBtn').addEventListener('click', async () => {
     try {
         currentIssue = await patchIssue({ branch: document.getElementById('issueBranchEdit').value.trim() || null });
-        document.getElementById('issueBranch').innerHTML = renderBranchDisplay(currentIssue.branch);
+        document.getElementById('issueBranch').innerHTML = renderBranchDisplay(currentIssue);
         renderActivity(currentIssue.activity_events || []);
         cancelBranchEdit();
     } catch (error) {

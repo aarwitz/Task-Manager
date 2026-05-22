@@ -27,6 +27,7 @@ class Issue(Base):
     created_by = Column(String)
     assigned_to = Column(String, nullable=True)
     branch = Column(String, nullable=True)
+    repo_slug = Column(String, nullable=True)
     story_points = Column(Integer, nullable=True)
     priority = Column(String, default="medium")
     blocked_reason = Column(Text, nullable=True)
