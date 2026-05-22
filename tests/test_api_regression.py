@@ -184,3 +184,36 @@ def test_branch_repo_slug_round_trip_and_activity_logging():
     fields = [event['field_name'] for event in body['activity_events'] if event['event_type'] == 'field_changed']
     assert 'branch' in fields
     assert 'repo_slug' in fields
+
+
+def test_issue_detail_response_contains_expected_frontend_fields():
+    sprint = create_sprint('UI Sprint')
+    issue = create_issue(
+        sprint_id=sprint['id'],
+        assigned_to='Jerry',
+        branch='feature/ui',
+        repo_slug='aarwitz/Task-Manager',
+        story_points=3,
+        blocked_reason='Waiting on review',
+        acceptance_criteria='It should render cleanly',
+    )
+    comment = client.post(
+        f"/api/issues/{issue['id']}/comments",
+        json={'content': 'Looks good', 'username': 'Aaron'},
+    )
+    assert comment.status_code == 200
+
+    detail = client.get(f"/api/issues/{issue['id']}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body['id'] == issue['id']
+    assert body['assigned_to'] == 'Jerry'
+    assert body['sprint_id'] == sprint['id']
+    assert body['branch'] == 'feature/ui'
+    assert body['repo_slug'] == 'aarwitz/Task-Manager'
+    assert body['story_points'] == 3
+    assert body['blocked_reason'] == 'Waiting on review'
+    assert body['acceptance_criteria'] == 'It should render cleanly'
+    assert isinstance(body['comments'], list) and len(body['comments']) == 1
+    assert isinstance(body['images'], list)
+    assert isinstance(body['activity_events'], list) and len(body['activity_events']) >= 1

@@ -217,7 +217,8 @@ async function loadIssue() {
         loadImages(issue.images || []);
     } catch (error) {
         console.error('Error loading issue:', error);
-        alert('An error occurred');
+        const detail = error?.message || 'An error occurred';
+        alert(detail);
     }
 }
 
