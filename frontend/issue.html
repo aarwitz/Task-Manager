@@ -63,9 +63,18 @@
                     <strong>Created by:</strong>
                     <span id="issueCreatedBy"></span>
                 </div>
-                <div class="info-item">
+                <div class="info-item issue-select-item">
                     <strong>Assigned to:</strong>
-                    <span id="issueAssignedTo"></span>
+                    <select id="issueAssignedToSelect" class="select issue-inline-select">
+                        <option value="">Unassigned</option>
+                        <option value="Dwight">Dwight</option>
+                        <option value="Jerry">Jerry</option>
+                        <option value="Resi">Resi</option>
+                        <option value="Druck">Druck</option>
+                        <option value="Aaron">Aaron</option>
+                        <option value="Taylor">Taylor</option>
+                    </select>
+                    <span id="issueAssignedToSaving" class="inline-save-status"></span>
                 </div>
                 <div class="info-item issue-select-item">
                     <strong>Status:</strong>

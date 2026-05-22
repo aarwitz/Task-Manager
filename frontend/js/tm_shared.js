@@ -115,9 +115,6 @@ window.TM_SHARED = (() => {
   }
 
   function renderIssueCard(issue, context = {}) {
-    const sprintOptions = buildSprintSelectOptions(context.sprints || [], issue.sprint_id, true, false);
-    const statusOptions = buildOptions(STATUS_OPTIONS, issue.status);
-    const assigneeOptions = buildOptions(ASSIGNEE_OPTIONS.filter(Boolean).map(v => ({ value: v, label: v })), issue.assigned_to, 'Unassigned');
     const priority = formatPriority(issue.priority || 'medium');
     const staleDays = getDaysStale(issue);
     const staleLabel = staleDays >= 3 ? `Stale ${staleDays}d` : `Updated ${new Date(getUpdatedAt(issue)).toLocaleDateString()}`;
@@ -138,17 +135,6 @@ window.TM_SHARED = (() => {
         </div>
         <div class="issue-card-description">${escapeHtml(issue.description || '').slice(0, 220)}${(issue.description || '').length > 220 ? '…' : ''}</div>
         <div class="issue-pills">${pointsPill}<span class="issue-pill priority-${escapeHtml(issue.priority || 'medium')}">${priority}</span>${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
-        <div class="issue-card-meta">
-          <span>Created: ${new Date(issue.created_at).toLocaleDateString()}</span>
-          <span>By: ${escapeHtml(issue.created_by)}</span>
-          <span>${escapeHtml(sprintLabel(issue, context.sprintMap))}</span>
-          <span>${branchLabel(issue)}</span>
-        </div>
-        <div class="inline-edit-grid" onclick="event.stopPropagation()">
-          <label>Status<select class="select issue-inline-control" data-field="status" data-issue-id="${issue.id}">${statusOptions}</select></label>
-          <label>Sprint<select class="select issue-inline-control" data-field="sprint_id" data-issue-id="${issue.id}">${sprintOptions}</select></label>
-          <label>Assignee<select class="select issue-inline-control" data-field="assigned_to" data-issue-id="${issue.id}">${assigneeOptions}</select></label>
-        </div>
         <div class="issue-card-meta issue-card-footer">
           <span>${activitySummary(issue)}</span>
           <span class="inline-save-status" data-save-status="${issue.id}"></span>

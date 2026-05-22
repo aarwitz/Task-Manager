@@ -43,8 +43,10 @@ const newIssueImagesLabel = document.getElementById('newIssueImagesLabel');
 const newIssueSprintSelect = document.getElementById('newIssueSprintId');
 const issueStatusSelect = document.getElementById('issueStatusSelect');
 const issueSprintSelect = document.getElementById('issueSprintSelect');
+const issueAssignedToSelect = document.getElementById('issueAssignedToSelect');
 const issueStatusSaving = document.getElementById('issueStatusSaving');
 const issueSprintSaving = document.getElementById('issueSprintSaving');
+const issueAssignedToSaving = document.getElementById('issueAssignedToSaving');
 const commentImageUploadInput = document.getElementById('commentImageUpload');
 const commentFileNameLabel = document.getElementById('commentFileName');
 
@@ -198,7 +200,8 @@ async function loadIssue() {
         document.getElementById('issueDescription').innerHTML = `<div class="issue-text">${renderTextWithLineBreaks(issue.description)}</div>${renderInlineImages(descriptionImages)}`;
         document.getElementById('issueCreated').textContent = new Date(issue.created_at).toLocaleString();
         document.getElementById('issueCreatedBy').textContent = issue.created_by;
-        document.getElementById('issueAssignedTo').textContent = issue.assigned_to || 'Unassigned';
+        issueAssignedToSelect.value = issue.assigned_to || '';
+        issueAssignedToSelect.disabled = false;
         document.getElementById('issueBranch').innerHTML = renderBranchDisplay(issue);
         const statusBadge = document.getElementById('issueStatus');
         statusBadge.textContent = formatStatus(issue.status);
@@ -211,6 +214,7 @@ async function loadIssue() {
         renderActivity(issue.activity_events || []);
         setInlineSavingStatus(issueStatusSaving, '');
         setInlineSavingStatus(issueSprintSaving, '');
+        setInlineSavingStatus(issueAssignedToSaving, '');
         loadComments(issue.comments || []);
         loadImages(issue.images || []);
     } catch (error) {
@@ -460,6 +464,25 @@ issueSprintSelect.addEventListener('change', async (event) => {
         setInlineSavingStatus(issueSprintSaving, error.message || 'Failed to save', true);
     } finally {
         issueSprintSelect.disabled = false;
+    }
+});
+issueAssignedToSelect.addEventListener('change', async (event) => {
+    const previousValue = currentIssue?.assigned_to || '';
+    const nextValue = event.target.value;
+    if (!currentIssue || nextValue === previousValue) return;
+    issueAssignedToSelect.disabled = true;
+    setInlineSavingStatus(issueAssignedToSaving, 'Saving...');
+    try {
+        currentIssue = await patchIssue({ assigned_to: nextValue === '' ? null : nextValue });
+        issueAssignedToSelect.value = currentIssue.assigned_to || '';
+        renderActivity(currentIssue.activity_events || []);
+        setInlineSavingStatus(issueAssignedToSaving, 'Saved');
+        setTimeout(() => setInlineSavingStatus(issueAssignedToSaving, ''), 1200);
+    } catch (error) {
+        issueAssignedToSelect.value = previousValue;
+        setInlineSavingStatus(issueAssignedToSaving, error.message || 'Failed to save', true);
+    } finally {
+        issueAssignedToSelect.disabled = false;
     }
 });
 
