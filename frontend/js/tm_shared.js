@@ -4,7 +4,6 @@ window.TM_SHARED = (() => {
     { value: 'to_do', label: 'To Do' },
     { value: 'in_progress', label: 'In Progress' },
     { value: 'in_review', label: 'In Review' },
-    { value: 'blocked', label: 'Blocked' },
     { value: 'done', label: 'Done' }
   ];
   function escapeHtml(text) {
@@ -21,7 +20,7 @@ window.TM_SHARED = (() => {
   }
 
   function isBlocked(issue) {
-    return issue.status === 'blocked' || Boolean(issue.blocked_reason);
+    return Boolean(issue.blocked_reason);
   }
 
   function getUpdatedAt(issue) {
@@ -121,7 +120,6 @@ window.TM_SHARED = (() => {
           </div>
           <span class="status-badge ${escapeHtml(issue.status)}">${formatStatus(issue.status)}</span>
         </div>
-        <div class="issue-card-description">${escapeHtml(issue.description || '').slice(0, 220)}${(issue.description || '').length > 220 ? '…' : ''}</div>
         <div class="issue-pills">${pointsPill}${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
         <div class="issue-card-meta issue-card-footer">
           <span>${activitySummary(issue)}</span>

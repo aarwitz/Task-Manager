@@ -5,10 +5,10 @@ A simple, lightweight task management system designed for small teams. Think JIR
 ## Features
 
 - **Simple Login** - Lightweight username-based access for trusted RSL VPN users
-- **Issue Creation** - Create and track issues with title, description, story points, branch, repo slug, blockers, and acceptance criteria
+- **Issue Creation** - Create and track issues with title, description, story points, branch, repo slug, and acceptance criteria
 - **Backlog Management** - View all unassigned issues, sort by status or recency
 - **Sprint Planning** - Create sprints and assign issues to them
-- **Kanban Board** - Drag and drop issues between To Do, In Progress, In Review, Blocked, and Done
+- **Kanban Board** - Drag and drop issues between To Do, In Progress, In Review, and Done
 - **Comments and Images** - Discuss issues and upload screenshots/images
 - **Activity History** - Field-level audit trail on issue updates
 - **Persistent Storage** - All data saved locally using SQLite
@@ -124,7 +124,7 @@ If you start the app yourself with `python main.py` or `./start.sh`, then you ca
 - Only one sprint can be active at a time
 - Starting a new sprint will end the current one
 - When you end a sprint, issues remain assigned to that sprint for history and review
-- You can track issue progress through the 5 columns: To Do, In Progress, In Review, Blocked, Done
+- You can track issue progress through the 4 columns: To Do, In Progress, In Review, Done
 
 ### Commenting on Issues
 

@@ -130,7 +130,7 @@ async function loadSprintIssues(sprintId) {
         document.querySelectorAll('.column-content').forEach((column) => {
             column.innerHTML = '';
         });
-        const issuesByStatus = { to_do: [], in_progress: [], in_review: [], blocked: [], done: [] };
+        const issuesByStatus = { to_do: [], in_progress: [], in_review: [], done: [] };
         currentSprintIssues.forEach((issue) => {
             if (!issuesByStatus[issue.status]) issuesByStatus[issue.status] = [];
             issuesByStatus[issue.status].push(issue);
