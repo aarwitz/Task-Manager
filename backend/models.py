@@ -26,6 +26,11 @@ class Issue(Base):
     assigned_to = Column(String, nullable=True)
     branch = Column(String, nullable=True)
     repo_slug = Column(String, nullable=True)
+    auto_launch_enabled = Column(Boolean, default=False, nullable=False)
+    launch_signature = Column(Text, nullable=True)
+    launch_state = Column(String, nullable=True)
+    launch_error = Column(Text, nullable=True)
+    last_launch_at = Column(DateTime, nullable=True)
     story_points = Column(Integer, nullable=True)
     blocked_reason = Column(Text, nullable=True)
     
@@ -52,6 +57,7 @@ class Sprint(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     is_active = Column(Boolean, default=False)
+    is_archived = Column(Boolean, default=False)
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
     

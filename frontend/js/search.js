@@ -4,7 +4,7 @@ if (!username) {
 }
 
 document.getElementById('currentUser').textContent = username;
-const { fetchJson, fetchSprints, renderIssueCard, findDuplicateCandidates } = window.TM_SHARED;
+const { fetchJson, fetchSprints, renderIssueCard, findDuplicateCandidates, formatSprintLabel } = window.TM_SHARED;
 const { submitIssueForm } = window.TMIssueForm;
 let searchTimeout = null;
 let searchSprints = [];
@@ -55,7 +55,7 @@ async function populateFilters() {
         sprints.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.id;
-            opt.textContent = `${s.name}${s.is_active ? ' (Active)' : ''}`;
+            opt.textContent = formatSprintLabel(s);
             sprintSelect.appendChild(opt);
         });
     } catch (e) {

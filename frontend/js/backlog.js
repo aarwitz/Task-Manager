@@ -4,11 +4,13 @@ if (!username) {
 }
 
 document.getElementById('currentUser').textContent = username;
-const { fetchJson, fetchSprints, buildSprintSelectOptions, renderIssueCard, attachInlineIssueEditors, findDuplicateCandidates, STATUS_OPTIONS } = window.TM_SHARED;
+const { fetchJson, fetchSprints, buildSprintSelectOptions, renderIssueCard, attachInlineIssueEditors, findDuplicateCandidates, STATUS_OPTIONS, formatSprintLabel } = window.TM_SHARED;
 const { submitIssueForm } = window.TMIssueForm;
 let backlogIssues = [];
 let backlogSprints = [];
 let backlogSprintMap = new Map();
+let archivedSprints = [];
+let archivedVisible = false;
 
 const createIssueModal = document.getElementById('createIssueModal');
 const createIssueBtn = document.getElementById('createIssueBtn');
@@ -17,6 +19,8 @@ const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
 const issueImagesInput = document.getElementById('issueImages');
 const issueImagesLabel = document.getElementById('issueImagesLabel');
 const issueSprintSelect = document.getElementById('issueSprintId');
+const toggleArchivedSprintsBtn = document.getElementById('toggleArchivedSprintsBtn');
+const archivedSprintsSection = document.getElementById('archivedSprintsSection');
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
     localStorage.removeItem('username');
@@ -31,6 +35,13 @@ closeModal.addEventListener('click', () => createIssueModal.classList.remove('sh
 cancelBtn.addEventListener('click', () => createIssueModal.classList.remove('show'));
 window.addEventListener('click', (e) => {
     if (e.target === createIssueModal) createIssueModal.classList.remove('show');
+});
+
+toggleArchivedSprintsBtn.addEventListener('click', async () => {
+    archivedVisible = !archivedVisible;
+    archivedSprintsSection.style.display = archivedVisible ? 'block' : 'none';
+    toggleArchivedSprintsBtn.textContent = archivedVisible ? 'Hide Archived Sprints' : 'View Archived Sprints';
+    if (archivedVisible) await loadArchivedSprints();
 });
 
 if (issueImagesInput && issueImagesLabel) {
@@ -117,28 +128,59 @@ async function loadSprints() {
         const sprintsList = document.getElementById('sprintsList');
         if (sprints.length === 0) {
             sprintsList.innerHTML = '<div class="no-data"><p>No sprints created yet. Create one to get started!</p></div>';
+            if (archivedVisible) await loadArchivedSprints();
             return;
         }
         sprintsList.innerHTML = sprints.map(sprint => `
             <div class="sprint-card ${sprint.is_active ? 'active' : ''}">
-                <h4>${sprint.name} ${sprint.is_active ? '(Active)' : ''}</h4>
+                <h4>${formatSprintLabel(sprint)}</h4>
                 <div class="sprint-meta">
                     <p>${sprint.started_at ? `Started: ${new Date(sprint.started_at).toLocaleDateString()}` : 'Not started yet'}</p>
+                    ${sprint.ended_at ? `<p>Ended: ${new Date(sprint.ended_at).toLocaleDateString()}</p>` : ''}
                 </div>
                 <div class="sprint-actions">
                     ${!sprint.is_active ? `<button class="btn btn-success btn-sm" onclick="startSprint(${sprint.id})">Start</button>` : `<button class="btn btn-danger btn-sm" onclick="endSprint(${sprint.id})">End</button>`}
                     <button class="btn btn-secondary btn-sm" onclick="viewSprint(${sprint.id})">View</button>
+                    ${!sprint.is_active ? `<button class="btn btn-secondary btn-sm" onclick="archiveSprint(${sprint.id})">Archive</button>` : ''}
                 </div>
             </div>
         `).join('');
         await populateIssueSprintOptions();
+        if (archivedVisible) await loadArchivedSprints();
     } catch (error) {
         console.error('Error loading sprints:', error);
     }
 }
 
+async function loadArchivedSprints() {
+    try {
+        const { sprints } = await fetchSprints({ archivedOnly: true });
+        archivedSprints = sprints;
+        const archivedList = document.getElementById('archivedSprintsList');
+        if (sprints.length === 0) {
+            archivedList.innerHTML = '<div class="no-data"><p>No archived sprints.</p></div>';
+            return;
+        }
+        archivedList.innerHTML = sprints.map(sprint => `
+            <div class="sprint-card">
+                <h4>${formatSprintLabel(sprint)}</h4>
+                <div class="sprint-meta">
+                    ${sprint.started_at ? `<p>Started: ${new Date(sprint.started_at).toLocaleDateString()}</p>` : '<p>Never started</p>'}
+                    ${sprint.ended_at ? `<p>Ended: ${new Date(sprint.ended_at).toLocaleDateString()}</p>` : ''}
+                </div>
+                <div class="sprint-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="unarchiveSprint(${sprint.id})">Unarchive</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSprint(${sprint.id})">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading archived sprints:', error);
+    }
+}
+
 async function startSprint(sprintId) {
-    if (!confirm('Start this sprint? This will end any currently active sprint.')) return;
+    if (!confirm('Start this sprint? Other active sprints will remain active.')) return;
     try {
         await fetchJson(`/api/sprints/${sprintId}/start`, { method: 'POST' });
         await loadSprints();
@@ -163,6 +205,53 @@ async function endSprint(sprintId) {
     }
 }
 window.endSprint = endSprint;
+
+async function archiveSprint(sprintId) {
+    if (!confirm('Archive this sprint? It will disappear from Available Sprints.')) return;
+    try {
+        await fetchJson(`/api/sprints/${sprintId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_archived: true })
+        });
+        await loadSprints();
+        alert('Sprint archived.');
+    } catch (error) {
+        console.error('Error:', error);
+        alert(error.message || 'Failed to archive sprint');
+    }
+}
+window.archiveSprint = archiveSprint;
+
+async function unarchiveSprint(sprintId) {
+    try {
+        await fetchJson(`/api/sprints/${sprintId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_archived: false })
+        });
+        await loadSprints();
+        alert('Sprint restored.');
+    } catch (error) {
+        console.error('Error:', error);
+        alert(error.message || 'Failed to unarchive sprint');
+    }
+}
+window.unarchiveSprint = unarchiveSprint;
+
+async function deleteSprint(sprintId) {
+    if (!confirm('Delete this sprint? Any linked issues will be moved to backlog.')) return;
+    try {
+        await fetchJson(`/api/sprints/${sprintId}`, { method: 'DELETE' });
+        await loadSprints();
+        await loadIssues();
+        alert('Sprint deleted.');
+    } catch (error) {
+        console.error('Error:', error);
+        alert(error.message || 'Failed to delete sprint');
+    }
+}
+window.deleteSprint = deleteSprint;
 
 function viewSprint(sprintId) {
     window.location.href = `/static/sprint.html?sprint_id=${sprintId}`;

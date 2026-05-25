@@ -84,9 +84,21 @@ window.TM_SHARED = (() => {
     });
   }
 
-  async function fetchSprints() {
-    const sprints = await fetchJson('/api/sprints');
-    const sprintMap = new Map(sprints.map((s) => [s.id, s.is_active ? `${s.name} (Active)` : s.name]));
+  function formatSprintLabel(sprint) {
+    const suffixes = [];
+    if (sprint.is_active) suffixes.push('Active');
+    if (sprint.is_archived) suffixes.push('Archived');
+    return suffixes.length ? `${sprint.name} (${suffixes.join(', ')})` : sprint.name;
+  }
+
+  async function fetchSprints(options = {}) {
+    const params = new URLSearchParams();
+    if (options.activeOnly) params.set('active_only', 'true');
+    if (options.includeArchived) params.set('include_archived', 'true');
+    if (options.archivedOnly) params.set('archived_only', 'true');
+    const query = params.toString();
+    const sprints = await fetchJson(`/api/sprints${query ? `?${query}` : ''}`);
+    const sprintMap = new Map(sprints.map((s) => [s.id, formatSprintLabel(s)]));
     return { sprints, sprintMap };
   }
 
@@ -96,11 +108,26 @@ window.TM_SHARED = (() => {
     else if (includeBacklog) options.push('<option value="">Backlog</option>');
     sprints.forEach((sprint) => {
       const selected = String(selectedSprintId ?? '') === String(sprint.id) ? ' selected' : '';
-      const label = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
+      const label = formatSprintLabel(sprint);
       options.push(`<option value="${sprint.id}"${selected}>${escapeHtml(label)}</option>`);
     });
     return options.join('');
   }
+
+  async function syncSprintNavLinks() {
+    const sprintLinks = document.querySelectorAll('[data-sprint-nav-link]');
+    if (!sprintLinks.length) return;
+    let href = '/static/sprint.html';
+    try {
+      const activeSprint = await fetchJson('/api/sprints/active');
+      if (activeSprint?.id != null) href = `/static/sprint.html?sprint_id=${activeSprint.id}`;
+    } catch {}
+    sprintLinks.forEach((link) => {
+      link.setAttribute('href', href);
+    });
+  }
+
+  syncSprintNavLinks();
 
   function renderIssueCard(issue, context = {}) {
     const staleDays = getDaysStale(issue);
@@ -192,11 +219,13 @@ window.TM_SHARED = (() => {
     fetchJson,
     patchIssue,
     fetchSprints,
+    formatSprintLabel,
     buildSprintSelectOptions,
     renderIssueCard,
     attachInlineIssueEditors,
     findDuplicateCandidates,
     getDaysStale,
-    isBlocked
+    isBlocked,
+    syncSprintNavLinks
   };
 })();
