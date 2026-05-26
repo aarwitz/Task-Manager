@@ -4,7 +4,6 @@ window.TM_SHARED = (() => {
     { value: 'to_do', label: 'To Do' },
     { value: 'in_progress', label: 'In Progress' },
     { value: 'in_review', label: 'In Review' },
-    { value: 'blocked', label: 'Blocked' },
     { value: 'done', label: 'Done' }
   ];
   function escapeHtml(text) {
@@ -21,7 +20,7 @@ window.TM_SHARED = (() => {
   }
 
   function isBlocked(issue) {
-    return issue.status === 'blocked' || Boolean(issue.blocked_reason);
+    return Boolean(issue.blocked_reason);
   }
 
   function getUpdatedAt(issue) {
@@ -85,9 +84,21 @@ window.TM_SHARED = (() => {
     });
   }
 
-  async function fetchSprints() {
-    const sprints = await fetchJson('/api/sprints');
-    const sprintMap = new Map(sprints.map((s) => [s.id, s.is_active ? `${s.name} (Active)` : s.name]));
+  function formatSprintLabel(sprint) {
+    const suffixes = [];
+    if (sprint.is_active) suffixes.push('Active');
+    if (sprint.is_archived) suffixes.push('Archived');
+    return suffixes.length ? `${sprint.name} (${suffixes.join(', ')})` : sprint.name;
+  }
+
+  async function fetchSprints(options = {}) {
+    const params = new URLSearchParams();
+    if (options.activeOnly) params.set('active_only', 'true');
+    if (options.includeArchived) params.set('include_archived', 'true');
+    if (options.archivedOnly) params.set('archived_only', 'true');
+    const query = params.toString();
+    const sprints = await fetchJson(`/api/sprints${query ? `?${query}` : ''}`);
+    const sprintMap = new Map(sprints.map((s) => [s.id, formatSprintLabel(s)]));
     return { sprints, sprintMap };
   }
 
@@ -97,11 +108,26 @@ window.TM_SHARED = (() => {
     else if (includeBacklog) options.push('<option value="">Backlog</option>');
     sprints.forEach((sprint) => {
       const selected = String(selectedSprintId ?? '') === String(sprint.id) ? ' selected' : '';
-      const label = sprint.is_active ? `${sprint.name} (Active)` : sprint.name;
+      const label = formatSprintLabel(sprint);
       options.push(`<option value="${sprint.id}"${selected}>${escapeHtml(label)}</option>`);
     });
     return options.join('');
   }
+
+  async function syncSprintNavLinks() {
+    const sprintLinks = document.querySelectorAll('[data-sprint-nav-link]');
+    if (!sprintLinks.length) return;
+    let href = '/static/sprint.html';
+    try {
+      const activeSprint = await fetchJson('/api/sprints/active');
+      if (activeSprint?.id != null) href = `/static/sprint.html?sprint_id=${activeSprint.id}`;
+    } catch {}
+    sprintLinks.forEach((link) => {
+      link.setAttribute('href', href);
+    });
+  }
+
+  syncSprintNavLinks();
 
   function renderIssueCard(issue, context = {}) {
     const staleDays = getDaysStale(issue);
@@ -109,6 +135,7 @@ window.TM_SHARED = (() => {
     const blockedPill = isBlocked(issue) ? `<span class="issue-pill blocked">Blocked${issue.blocked_reason ? `: ${escapeHtml(issue.blocked_reason)}` : ''}</span>` : '';
     const reviewPill = issue.status === 'in_review' ? '<span class="issue-pill review">Needs review</span>' : '';
     const pointsPill = issue.story_points != null ? `<span class="issue-pill">${issue.story_points} pts</span>` : '<span class="issue-pill muted">No points</span>';
+    const launchPill = issue.launch_state ? `<span class="issue-pill">${escapeHtml(formatStatus(issue.launch_state))}</span>` : '';
     const duplicates = context.duplicateMap?.get?.(issue.id) || [];
     const dupPill = duplicates.length ? `<span class="issue-pill duplicate">Possible dupes: ${duplicates.map(d => `#${d.id}`).join(', ')}</span>` : '';
 
@@ -121,8 +148,7 @@ window.TM_SHARED = (() => {
           </div>
           <span class="status-badge ${escapeHtml(issue.status)}">${formatStatus(issue.status)}</span>
         </div>
-        <div class="issue-card-description">${escapeHtml(issue.description || '').slice(0, 220)}${(issue.description || '').length > 220 ? '…' : ''}</div>
-        <div class="issue-pills">${pointsPill}${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
+        <div class="issue-pills">${pointsPill}${launchPill}${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
         <div class="issue-card-meta issue-card-footer">
           <span>${activitySummary(issue)}</span>
           <span class="inline-save-status" data-save-status="${issue.id}"></span>
@@ -194,11 +220,13 @@ window.TM_SHARED = (() => {
     fetchJson,
     patchIssue,
     fetchSprints,
+    formatSprintLabel,
     buildSprintSelectOptions,
     renderIssueCard,
     attachInlineIssueEditors,
     findDuplicateCandidates,
     getDaysStale,
-    isBlocked
+    isBlocked,
+    syncSprintNavLinks
   };
 })();

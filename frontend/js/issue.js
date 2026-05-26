@@ -98,6 +98,59 @@ function renderInlineImages(images, cssClass = 'inline-image-list') {
         </figure>`).join('')}</div>`;
 }
 
+function humanizeActivityField(fieldName = '') {
+    const labels = {
+        sprint_id: 'sprint',
+        assigned_to: 'assignee',
+        repo_slug: 'repository',
+        story_points: 'story points',
+        blocked_reason: 'block reason',
+    };
+    return labels[fieldName] || fieldName.replace(/_/g, ' ');
+}
+
+function summarizeTextLengthChange(oldValue, newValue) {
+    const oldLength = (oldValue || '').trim().length;
+    const newLength = (newValue || '').trim().length;
+    if (!oldLength && newLength) return `set (${newLength} chars)`;
+    if (oldLength && !newLength) return `cleared (${oldLength} chars removed)`;
+    if (!oldLength && !newLength) return 'updated';
+    return `updated (${oldLength} -> ${newLength} chars)`;
+}
+
+function summarizeCommentPreview(value) {
+    const compact = (value || '').replace(/\s+/g, ' ').trim();
+    if (!compact) return 'added a comment';
+    if (compact.length <= 48) return `commented: "${escapeHtml(compact)}"`;
+    return `added a comment (${compact.length} chars)`;
+}
+
+function renderFieldChangeDetail(event) {
+    const fieldLabel = escapeHtml(humanizeActivityField(event.field_name || ''));
+    const oldValue = event.old_value || '';
+    const newValue = event.new_value || '';
+    const compactOld = oldValue.replace(/\s+/g, ' ').trim();
+    const compactNew = newValue.replace(/\s+/g, ' ').trim();
+    const isLongTextField = ['description', 'acceptance_criteria', 'blocked_reason'].includes(event.field_name);
+
+    if (isLongTextField) {
+        return `${summarizeTextLengthChange(oldValue, newValue)} ${fieldLabel}`;
+    }
+    if (!compactOld && compactNew) {
+        return `set ${fieldLabel} to <em>${escapeHtml(compactNew)}</em>`;
+    }
+    if (compactOld && !compactNew) {
+        return `cleared ${fieldLabel}`;
+    }
+    if (!compactOld && !compactNew) {
+        return `updated ${fieldLabel}`;
+    }
+    if (compactOld.length <= 32 && compactNew.length <= 32) {
+        return `changed ${fieldLabel} from <em>${escapeHtml(compactOld)}</em> to <em>${escapeHtml(compactNew)}</em>`;
+    }
+    return `updated ${fieldLabel}`;
+}
+
 function renderActivity(events = []) {
     const activityEl = document.getElementById('issueActivity');
     if (!events.length) {
@@ -109,8 +162,8 @@ function renderActivity(events = []) {
         const timestamp = new Date(event.created_at).toLocaleString();
         let detail = '';
         if (event.event_type === 'created') detail = 'created this issue';
-        else if (event.event_type === 'comment_added') detail = `added a comment${event.new_value ? `: ${escapeHtml(event.new_value)}` : ''}`;
-        else if (event.field_name) detail = `changed ${escapeHtml(event.field_name.replace(/_/g, ' '))} from <em>${escapeHtml(event.old_value || 'empty')}</em> to <em>${escapeHtml(event.new_value || 'empty')}</em>`;
+        else if (event.event_type === 'comment_added') detail = summarizeCommentPreview(event.new_value);
+        else if (event.field_name) detail = renderFieldChangeDetail(event);
         else detail = escapeHtml(event.event_type);
         return `<div class="activity-item"><div class="activity-line">${actor}${detail}</div><div class="activity-time">${timestamp}</div></div>`;
     }).join('');
@@ -118,6 +171,13 @@ function renderActivity(events = []) {
 
 function renderPlanning(issue) {
     document.getElementById('issueStoryPoints').textContent = issue.story_points != null ? String(issue.story_points) : 'None';
+    document.getElementById('issueRepoSlug').textContent = issue.repo_slug || 'None';
+    document.getElementById('issueAutoLaunchEnabled').textContent = issue.auto_launch_enabled ? 'Enabled' : 'Disabled';
+    document.getElementById('issueLaunchState').textContent = issue.launch_state ? formatStatus(issue.launch_state) : 'Disabled';
+    const launchParts = [];
+    if (issue.last_launch_at) launchParts.push(`Last launch: ${new Date(issue.last_launch_at).toLocaleString()}`);
+    if (issue.launch_error) launchParts.push(issue.launch_error);
+    document.getElementById('issueLaunchDetail').innerHTML = launchParts.length ? renderTextWithLineBreaks(launchParts.join('\n')) : '<span class="muted-text">No launch attempts yet.</span>';
     document.getElementById('issueBlockedReason').textContent = issue.blocked_reason || 'None';
     document.getElementById('issueAcceptanceCriteria').innerHTML = issue.acceptance_criteria ? renderTextWithLineBreaks(issue.acceptance_criteria) : '<span class="muted-text">None</span>';
 }
@@ -130,7 +190,7 @@ async function populateIssueSprintOptions() {
 }
 
 async function populateStorySprintSelect(selectedSprintId = null) {
-    const { sprints } = await fetchSprints();
+    const { sprints } = await fetchSprints({ includeArchived: true });
     issueSprints = sprints;
     issueSprintSelect.innerHTML = buildSprintSelectOptions(sprints, selectedSprintId, true, false);
     issueSprintSelect.value = selectedSprintId == null ? '' : String(selectedSprintId);
@@ -167,6 +227,7 @@ document.getElementById('createIssueForm').addEventListener('submit', async (e) 
         sprint_id: newIssueSprintSelect.value ? Number(newIssueSprintSelect.value) : null,
         branch: document.getElementById('newIssueBranch').value.trim() || null,
         repo_slug: document.getElementById('newIssueRepoSlug')?.value.trim() || null,
+        auto_launch_enabled: document.getElementById('newIssueAutoLaunchEnabled')?.checked || false,
         acceptance_criteria: document.getElementById('newIssueAcceptanceCriteria').value.trim() || null,
         story_points: document.getElementById('newIssueStoryPoints').value ? Number(document.getElementById('newIssueStoryPoints').value) : null,
         blocked_reason: document.getElementById('newIssueBlockedReason').value.trim() || null
@@ -397,14 +458,18 @@ document.getElementById('editPlanningBtn').addEventListener('click', () => {
     document.getElementById('issuePlanningEditWrap').style.display = 'block';
     document.getElementById('editPlanningBtn').style.display = 'none';
     document.getElementById('issueStoryPointsEdit').value = currentIssue?.story_points ?? '';
+    document.getElementById('issueRepoSlugEdit').value = currentIssue?.repo_slug || '';
     document.getElementById('issueBlockedReasonEdit').value = currentIssue?.blocked_reason || '';
+    document.getElementById('issueAutoLaunchEnabledEdit').checked = Boolean(currentIssue?.auto_launch_enabled);
     document.getElementById('issueAcceptanceCriteriaEdit').value = currentIssue?.acceptance_criteria || '';
 });
 document.getElementById('cancelPlanningBtn').addEventListener('click', cancelPlanningEdit);
 document.getElementById('savePlanningBtn').addEventListener('click', async () => {
     const payload = {
         story_points: document.getElementById('issueStoryPointsEdit').value ? Number(document.getElementById('issueStoryPointsEdit').value) : null,
+        repo_slug: document.getElementById('issueRepoSlugEdit').value.trim() || null,
         blocked_reason: document.getElementById('issueBlockedReasonEdit').value.trim() || null,
+        auto_launch_enabled: document.getElementById('issueAutoLaunchEnabledEdit').checked,
         acceptance_criteria: document.getElementById('issueAcceptanceCriteriaEdit').value.trim() || null
     };
     try {

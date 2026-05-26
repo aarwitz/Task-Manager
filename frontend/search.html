@@ -20,7 +20,7 @@
             <div class="nav-left">
                 <h2>Task Manager</h2>
                 <a href="/static/backlog.html" class="nav-link">Backlog</a>
-                <a href="/static/sprint.html" class="nav-link">Sprint</a>
+                <a href="/static/sprint.html" class="nav-link" data-sprint-nav-link>Sprint</a>
                 <a href="/static/search.html" class="nav-link active">Search</a>
             </div>
             <div class="nav-right">
@@ -34,6 +34,25 @@
     <div class="container">
         <div class="page-header">
             <h1>Search Issues</h1>
+        </div>
+
+        <div class="filters-panel">
+            <div class="filters-header">
+                <h3>Operator Views</h3>
+                <button id="clearOperatorViewBtn" class="btn btn-secondary btn-sm">Show All</button>
+            </div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <button type="button" class="btn btn-secondary btn-sm operator-view-btn" data-operator-view="ready_not_queued">Ready, Not Queued</button>
+                </div>
+                <div class="filter-group">
+                    <button type="button" class="btn btn-secondary btn-sm operator-view-btn" data-operator-view="active_launch_without_recent_evidence">Queued/Launched, No Recent Evidence</button>
+                </div>
+                <div class="filter-group">
+                    <button type="button" class="btn btn-secondary btn-sm operator-view-btn" data-operator-view="in_progress_no_pr">In Progress, No PR</button>
+                </div>
+            </div>
+            <small id="operatorViewSummary" class="muted-text">No operator view selected.</small>
         </div>
 
         <!-- Search Bar -->
@@ -165,6 +184,21 @@
                 <div class="form-group">
                     <label for="issueBlockedReason">Blocked Reason</label>
                     <input type="text" id="issueBlockedReason" name="blocked_reason" placeholder="Optional blocker or dependency">
+                </div>
+                <div class="form-group">
+                    <label for="issueBranch">Branch</label>
+                    <input type="text" id="issueBranch" name="branch" placeholder="e.g. issue-129-tm-exec-readiness-contract">
+                </div>
+                <div class="form-group">
+                    <label for="issueRepoSlug">Repo slug (optional)</label>
+                    <input type="text" id="issueRepoSlug" name="repo_slug" placeholder="e.g. aarwitz/Task-Manager">
+                </div>
+                <div class="form-group checkbox-row">
+                    <label class="checkbox-label" for="issueAutoLaunchEnabled">
+                        <input type="checkbox" id="issueAutoLaunchEnabled" name="auto_launch_enabled">
+                        Auto-launch when this issue becomes ready
+                    </label>
+                    <small class="muted-text">Requires: assigned agent, branch, repo slug, acceptance criteria, and In Progress status.</small>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>

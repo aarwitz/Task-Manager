@@ -1,17 +1,16 @@
 # Task Manager
 
-A simple, lightweight task management system designed for small teams. Think JIRA, but streamlined for just you and your partner to stay organized on your robotics project.
+A lightweight issue, sprint, and execution queue for the RSL workflow. It tracks planning data, branch/repo context, comments, evidence, and autonomous launcher readiness in one place.
 
 ## Features
 
-- **Simple Login** - Lightweight username-based access for trusted RSL VPN users
-- **Issue Creation** - Create and track issues with title, description, story points, branch, repo slug, blockers, and acceptance criteria
-- **Backlog Management** - View all unassigned issues, sort by status or recency
-- **Sprint Planning** - Create sprints and assign issues to them
-- **Kanban Board** - Drag and drop issues between To Do, In Progress, In Review, Blocked, and Done
-- **Comments and Images** - Discuss issues and upload screenshots/images
-- **Activity History** - Field-level audit trail on issue updates
-- **Persistent Storage** - All data saved locally using SQLite
+- **Trusted-user login** - Canonical Task Manager identities for internal users
+- **Issue planning fields** - Title, description, assignee, branch, repo slug, acceptance criteria, story points, and blocked reason
+- **Backlog and sprint views** - Backlog management, active sprint flow, and issue detail editing
+- **Execution readiness tracking** - `auto_launch_enabled`, `launch_state`, `launch_error`, and `last_launch_at`
+- **Comments and images** - Issue discussion plus screenshot/image uploads
+- **Activity history** - Field-level audit trail for create, update, and execution events
+- **Persistent local storage** - SQLite-backed state with additive startup migrations
 
 ## Tech Stack
 
@@ -117,14 +116,22 @@ If you start the app yourself with `python main.py` or `./start.sh`, then you ca
 2. Fill in the title and description
 3. The issue automatically goes to the backlog
 4. From the backlog, you can assign issues to your active sprint
-5. In the sprint view, drag issues between columns to update their status
+5. In the sprint view, move issues through `to_do`, `in_progress`, `in_review`, `done`, or `blocked`
 
 ### Working with Sprints
 
 - Only one sprint can be active at a time
 - Starting a new sprint will end the current one
 - When you end a sprint, issues remain assigned to that sprint for history and review
-- You can track issue progress through the 5 columns: To Do, In Progress, In Review, Blocked, Done
+- Active work is tracked through `to_do`, `in_progress`, `in_review`, `done`, and `blocked`
+
+### Auto-launch Workflow
+
+- Auto-launch is available only for coding issues assigned to `Dwight`, `Jerry`, `Resi`, or `Druck`
+- A ready issue must be `in_progress`, unblocked, and include `branch`, `repo_slug`, and `acceptance_criteria`
+- When readiness is satisfied and `auto_launch_enabled=true`, Task Manager queues the canonical Dwight launcher
+- Launcher postback writes the real execution outcome through `POST /api/issues/{id}/launch-result`
+- Launch states currently used by Task Manager are `disabled`, `waiting`, `ready`, `queued`, `launched`, and `failed`
 
 ### Commenting on Issues
 
@@ -140,20 +147,20 @@ Task-Manager/
 │   ├── main.py           # FastAPI application and routes
 │   ├── models.py         # Database models
 │   ├── schemas.py        # Pydantic schemas for API
-│   └── database.py       # Database configuration
+│   ├── database.py       # Database configuration
+│   └── normalize_tm_identities.py  # Canonical TM username normalization
 ├── frontend/
 │   ├── index.html        # Login page
-│   ├── backlog.html      # Backlog view
-│   ├── sprint.html       # Sprint/Kanban board
+│   ├── backlog.html      # Backlog planning surface
+│   ├── sprint.html       # Sprint / kanban surface
 │   ├── issue.html        # Issue detail page
-│   ├── css/
-│   │   └── styles.css    # All styles
-│   └── js/
-│       ├── backlog.js    # Backlog functionality
-│       ├── sprint.js     # Sprint/drag-drop functionality
-│       └── issue.js      # Issue detail functionality
+│   ├── search.html       # Search and issue creation surface
+│   ├── factory.html      # Experimental execution map
+│   ├── miniapp.html      # Experimental compact surface
+│   └── js/               # Shared frontend behavior
 ├── requirements.txt      # Python dependencies
-└── taskmanager.db       # SQLite database (created on first run)
+├── start.sh              # Local launcher helper
+└── taskmanager.db        # SQLite database (created on first run)
 ```
 
 ## Network Access
@@ -177,6 +184,5 @@ The server is configured to listen on `0.0.0.0:8000`, which means:
 - Images are supported on issue descriptions, attachments, and comments
 - Branch links can store per-issue repo context via `repo_slug`
 - Activity history is recorded for issue creation, comments, and field updates
+- Task Manager owns launcher readiness and detached queueing; the launcher posts real outcomes back after execution starts or fails
 - The factory/miniapp surfaces are experimental and should be treated as secondary interfaces until explicitly hardened
-
-Enjoy staying organized! 🤖

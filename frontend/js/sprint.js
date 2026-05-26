@@ -18,6 +18,7 @@ const cancelBtn = document.querySelector('#createIssueModal .cancel-btn');
 const issueSprintSelect = document.getElementById('issueSprintId');
 const issueImagesInput = document.getElementById('issueImages');
 const issueImagesLabel = document.getElementById('issueImagesLabel');
+const sprintPicker = document.getElementById('sprintPicker');
 const sprintParams = new URLSearchParams(window.location.search);
 const requestedSprintId = sprintParams.get('sprint_id');
 
@@ -93,6 +94,7 @@ async function loadSprint() {
     const sprintData = await fetchSprints();
     sprintList = sprintData.sprints;
     sprintMap = sprintData.sprintMap;
+    sprintPicker.innerHTML = buildSprintSelectOptions(sprintList, requestedSprintId ?? null, false, false);
 
     let sprint = null;
     if (requestedSprintId) {
@@ -108,19 +110,22 @@ async function loadSprint() {
         document.getElementById('sprintBoard').style.display = 'none';
         document.getElementById('startSprintBtn').style.display = 'none';
         document.getElementById('endSprintBtn').style.display = 'none';
+        sprintPicker.innerHTML = '<option value="">No sprint available</option>';
         return;
     }
     currentSprint = sprint;
+    sprintPicker.value = String(sprint.id);
     await populateIssueSprintOptions();
     document.getElementById('noSprintMessage').style.display = 'none';
     document.getElementById('sprintBoard').style.display = 'grid';
     document.getElementById('sprintTitle').textContent = sprint.name;
     const sprintMeta = [];
     if (sprint.started_at) sprintMeta.push(`Started: ${new Date(sprint.started_at).toLocaleString()}`);
+    if (sprint.is_active) sprintMeta.push('Status: Active');
     if (!sprint.is_active) sprintMeta.push('Status: Planned / inactive');
     document.getElementById('sprintInfo').textContent = sprintMeta.join(' · ');
-    document.getElementById('startSprintBtn').style.display = sprint.is_active || requestedSprintId ? 'none' : 'block';
-    document.getElementById('endSprintBtn').style.display = sprint.is_active && !requestedSprintId ? 'block' : 'none';
+    document.getElementById('startSprintBtn').style.display = sprint.is_active ? 'none' : 'block';
+    document.getElementById('endSprintBtn').style.display = sprint.is_active ? 'block' : 'none';
     await loadSprintIssues(sprint.id);
 }
 
@@ -130,7 +135,7 @@ async function loadSprintIssues(sprintId) {
         document.querySelectorAll('.column-content').forEach((column) => {
             column.innerHTML = '';
         });
-        const issuesByStatus = { to_do: [], in_progress: [], in_review: [], blocked: [], done: [] };
+        const issuesByStatus = { to_do: [], in_progress: [], in_review: [], done: [] };
         currentSprintIssues.forEach((issue) => {
             if (!issuesByStatus[issue.status]) issuesByStatus[issue.status] = [];
             issuesByStatus[issue.status].push(issue);
@@ -215,6 +220,25 @@ document.getElementById('endSprintBtn').addEventListener('click', async () => {
     } catch (error) {
         console.error('Error:', error);
         alert(error.message || 'Failed to end sprint');
+    }
+});
+
+sprintPicker.addEventListener('change', (event) => {
+    const sprintId = event.target.value;
+    if (!sprintId) return;
+    window.location.href = `/static/sprint.html?sprint_id=${sprintId}`;
+});
+
+document.getElementById('startSprintBtn').addEventListener('click', async () => {
+    if (!currentSprint) return;
+    if (!confirm('Start this sprint? Other active sprints will remain active.')) return;
+    try {
+        await fetchJson(`/api/sprints/${currentSprint.id}/start`, { method: 'POST' });
+        await loadSprint();
+        alert('Sprint started.');
+    } catch (error) {
+        console.error('Error:', error);
+        alert(error.message || 'Failed to start sprint');
     }
 });
 

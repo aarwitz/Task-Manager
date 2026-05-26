@@ -6,12 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, text as sql_text
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import uuid
 import shutil
 import re
 import imghdr
+import subprocess
 
 import models
 import schemas
@@ -22,6 +23,9 @@ models.Base.metadata.create_all(bind=engine)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"jpeg": ".jpg", "png": ".png", "gif": ".gif", "webp": ".webp"}
+EXECUTING_TM_USERS = {"Dwight", "Jerry", "Resi", "Druck"}
+DWIGHT_ISSUE_LAUNCHER = os.path.expanduser("~/.openclaw/scripts/dwight-launch-from-issue.py")
+TM_AUTO_LAUNCH_LOG = os.path.expanduser("~/.openclaw/logs/tm-auto-launch.log")
 
 
 def run_safe_migrations():
@@ -36,6 +40,17 @@ def run_safe_migrations():
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN repo_slug VARCHAR"))
         if "acceptance_criteria" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN acceptance_criteria TEXT"))
+        if "auto_launch_enabled" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN auto_launch_enabled BOOLEAN DEFAULT 0"))
+            conn.execute(sql_text("UPDATE issues SET auto_launch_enabled = 0 WHERE auto_launch_enabled IS NULL"))
+        if "launch_signature" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_signature TEXT"))
+        if "launch_state" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_state VARCHAR"))
+        if "launch_error" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_error TEXT"))
+        if "last_launch_at" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN last_launch_at DATETIME"))
         if "updated_at" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN updated_at DATETIME"))
             conn.execute(sql_text("UPDATE issues SET updated_at = created_at WHERE updated_at IS NULL"))
@@ -43,6 +58,11 @@ def run_safe_migrations():
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN story_points INTEGER"))
         if "blocked_reason" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN blocked_reason TEXT"))
+
+        sprint_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sprints)").fetchall()}
+        if "is_archived" not in sprint_columns:
+            conn.execute(sql_text("ALTER TABLE sprints ADD COLUMN is_archived BOOLEAN DEFAULT 0"))
+            conn.execute(sql_text("UPDATE sprints SET is_archived = 0 WHERE is_archived IS NULL"))
 
         image_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(issue_images)").fetchall()}
         if "comment_id" not in image_columns:
@@ -90,6 +110,11 @@ def cleanup_priority_column_if_present():
                 assigned_to VARCHAR,
                 branch VARCHAR,
                 acceptance_criteria TEXT,
+                auto_launch_enabled BOOLEAN DEFAULT 0,
+                launch_signature TEXT,
+                launch_state VARCHAR,
+                launch_error TEXT,
+                last_launch_at DATETIME,
                 updated_at DATETIME,
                 story_points INTEGER,
                 blocked_reason TEXT,
@@ -98,8 +123,8 @@ def cleanup_priority_column_if_present():
             )
         """))
         conn.execute(sql_text("""
-            INSERT INTO issues_new (id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, updated_at, story_points, blocked_reason, repo_slug)
-            SELECT id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, updated_at, story_points, blocked_reason, repo_slug
+            INSERT INTO issues_new (id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, auto_launch_enabled, launch_signature, launch_state, launch_error, last_launch_at, updated_at, story_points, blocked_reason, repo_slug)
+            SELECT id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, 0, NULL, NULL, NULL, NULL, updated_at, story_points, blocked_reason, repo_slug
             FROM issues
         """))
         conn.execute(sql_text("DROP TABLE issues"))
@@ -181,6 +206,17 @@ def normalize_optional_text(value: Optional[str]) -> Optional[str]:
     return normalized or None
 
 
+def normalize_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    return normalized in {"1", "true", "yes", "on"}
+
+
 def normalize_status(value: Optional[str]) -> str:
     status_value = (value or "to_do").strip().lower()
     if status_value not in models.STATUS_OPTIONS:
@@ -196,6 +232,13 @@ def validate_story_points(value: Optional[int]) -> Optional[int]:
     return value
 
 
+def validate_sprint_name(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Sprint name is required")
+    return normalized
+
+
 def parse_issue_create_form(form) -> schemas.IssueCreate:
     payload = {
         "title": form.get("title"),
@@ -206,6 +249,7 @@ def parse_issue_create_form(form) -> schemas.IssueCreate:
         "blocked_reason": form.get("blocked_reason") or None,
         "branch": form.get("branch") or None,
         "repo_slug": form.get("repo_slug") or None,
+        "auto_launch_enabled": normalize_bool(form.get("auto_launch_enabled")),
         "story_points": int(form.get("story_points")) if form.get("story_points") not in (None, "") else None,
         "sprint_id": int(form.get("sprint_id")) if form.get("sprint_id") not in (None, "") else None,
     }
@@ -233,6 +277,198 @@ def resolve_sprint_name(db: Session, sprint_id: Optional[int]) -> str:
         return "Backlog"
     sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
     return sprint.name if sprint else f"Sprint {sprint_id}"
+
+
+def build_issue_launch_signature(issue: models.Issue) -> str:
+    parts = [
+        issue.status or "",
+        issue.assigned_to or "",
+        issue.branch or "",
+        issue.repo_slug or "",
+        issue.acceptance_criteria or "",
+        issue.title or "",
+        issue.description or "",
+        "1" if issue.auto_launch_enabled else "0",
+    ]
+    return "|".join(parts)
+
+
+def issue_has_recent_evidence(issue: models.Issue, evidence_window_days: int) -> bool:
+    cutoff = datetime.now() - timedelta(days=max(evidence_window_days, 0))
+    for comment in issue.comments or []:
+        if not comment.created_at or comment.created_at < cutoff:
+            continue
+        if "evidence:" in (comment.content or "").lower():
+            return True
+    return False
+
+
+def issue_has_open_pr(issue: models.Issue) -> bool:
+    for comment in issue.comments or []:
+        content = (comment.content or "").lower()
+        if "pr_status=opened" in content or "/pull/" in content:
+            return True
+    return False
+
+
+def apply_operator_view(issues: List[models.Issue], operator_view: str, evidence_window_days: int) -> List[models.Issue]:
+    if operator_view == "ready_not_queued":
+        return [issue for issue in issues if issue.auto_launch_enabled and issue.launch_state == "ready"]
+    if operator_view == "active_launch_without_recent_evidence":
+        return [
+            issue
+            for issue in issues
+            if issue.launch_state in {"queued", "launched"} and not issue_has_recent_evidence(issue, evidence_window_days)
+        ]
+    if operator_view == "in_progress_no_pr":
+        return [
+            issue
+            for issue in issues
+            if issue.status == "in_progress"
+            and normalize_optional_text(issue.branch)
+            and normalize_optional_text(issue.repo_slug)
+            and not issue_has_open_pr(issue)
+        ]
+    return issues
+
+
+def find_agent_active_launch_issue(db: Session, issue: models.Issue) -> Optional[models.Issue]:
+    assignee = normalize_optional_text(issue.assigned_to)
+    if assignee not in EXECUTING_TM_USERS:
+        return None
+
+    query = (
+        db.query(models.Issue)
+        .filter(models.Issue.assigned_to == assignee)
+        .filter(models.Issue.launch_state.in_(["queued", "launched"]))
+        .order_by(models.Issue.last_launch_at.desc(), models.Issue.id.desc())
+    )
+    if issue.id is not None:
+        query = query.filter(models.Issue.id != issue.id)
+    return query.first()
+
+
+def evaluate_issue_launch_readiness(db: Session, issue: models.Issue) -> tuple[bool, str]:
+    if not issue.auto_launch_enabled:
+        return False, "Auto-launch disabled"
+    if issue.assigned_to not in EXECUTING_TM_USERS:
+        return False, "Assign this issue to Dwight, Jerry, Resi, or Druck"
+    if issue.status != "in_progress":
+        return False, "Move the issue to In Progress to trigger execution"
+    if normalize_optional_text(issue.blocked_reason):
+        return False, "Clear the blocked reason before auto-launch"
+    if not normalize_optional_text(issue.branch):
+        return False, "Branch is required for auto-launch"
+    if not normalize_optional_text(issue.repo_slug):
+        return False, "Repository slug is required for auto-launch"
+    if not normalize_optional_text(issue.acceptance_criteria):
+        return False, "Acceptance criteria are required for auto-launch"
+    if not normalize_optional_text(issue.title) and not normalize_optional_text(issue.description):
+        return False, "Issue needs a concrete title or description"
+    conflicting_issue = find_agent_active_launch_issue(db, issue)
+    if conflicting_issue:
+        return False, f"{issue.assigned_to} already has active auto-launch issue #{conflicting_issue.id}"
+    return True, "Ready"
+
+
+def build_auto_launch_comment(issue: models.Issue, queued: bool, detail: str) -> str:
+    if queued:
+        return (
+            "- changed: Task Manager queued this ready coding issue for autonomous execution through the canonical Dwight launcher.\n"
+            f"- evidence: assigned_to={issue.assigned_to} repo_slug={issue.repo_slug} branch={issue.branch} launch_state=queued\n"
+            f"- next step: the assigned agent should continue implementation on the linked branch. launch log: {detail}"
+        )
+    return (
+        "- changed: Task Manager attempted to queue this ready coding issue for autonomous execution, but the launcher spawn failed.\n"
+        f"- evidence: assigned_to={issue.assigned_to} repo_slug={issue.repo_slug} branch={issue.branch} launch_state=failed detail={detail}\n"
+        "- next step: inspect the launcher output, fix the readiness/runtime problem, then edit the issue again to retrigger."
+    )
+
+
+def sync_issue_launch_state(db: Session, issue: models.Issue) -> tuple[bool, str]:
+    ready, reason = evaluate_issue_launch_readiness(db, issue)
+    if not issue.auto_launch_enabled:
+        issue.launch_state = "disabled"
+        issue.launch_error = None
+    elif ready:
+        if issue.launch_state not in {"queued", "launched"}:
+            issue.launch_state = "ready"
+        issue.launch_error = None
+    else:
+        issue.launch_state = "waiting"
+        issue.launch_error = reason
+    return ready, reason
+
+
+def attempt_issue_auto_launch(db: Session, issue_id: int) -> Optional[str]:
+    issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+    if not issue:
+        return None
+
+    ready, reason = sync_issue_launch_state(db, issue)
+    if not ready:
+        db.commit()
+        return None
+
+    signature = build_issue_launch_signature(issue)
+    if issue.launch_signature == signature and issue.launch_state in {"queued", "launched"}:
+        db.commit()
+        return "duplicate_skipped"
+
+    if not os.path.isfile(DWIGHT_ISSUE_LAUNCHER):
+        issue.launch_state = "failed"
+        issue.launch_error = f"Launcher missing: {DWIGHT_ISSUE_LAUNCHER}"
+        issue.last_launch_at = datetime.now()
+        db.commit()
+        return "failed"
+
+    os.makedirs(os.path.dirname(TM_AUTO_LAUNCH_LOG), exist_ok=True)
+    cmd = [DWIGHT_ISSUE_LAUNCHER, "--issue-id", str(issue_id), "--execute"]
+    detail = TM_AUTO_LAUNCH_LOG
+    try:
+        with open(TM_AUTO_LAUNCH_LOG, "a", encoding="utf-8") as log_file:
+            log_file.write(
+                f"{datetime.utcnow().isoformat(timespec='seconds')}Z issue={issue_id} spawn cmd={' '.join(cmd)}\n"
+            )
+            subprocess.Popen(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+                env={**os.environ, "TM_BASE": "http://127.0.0.1:8000"},
+            )
+    except OSError as exc:
+        issue.launch_signature = signature
+        issue.last_launch_at = datetime.now()
+        issue.launch_state = "failed"
+        issue.launch_error = str(exc)
+        log_issue_activity(
+            db,
+            issue.id,
+            "auto_launch",
+            actor="Dwight",
+            new_value=f"failed: {str(exc)[:120]}",
+        )
+        db.add(models.Comment(content=build_auto_launch_comment(issue, False, str(exc)[:500]), username="Dwight", issue_id=issue.id))
+        db.commit()
+        return "failed"
+
+    issue.launch_signature = signature
+    issue.last_launch_at = datetime.now()
+    issue.launch_state = "queued"
+    issue.launch_error = None
+    log_issue_activity(
+        db,
+        issue.id,
+        "auto_launch",
+        actor="Dwight",
+        new_value="queued",
+    )
+    db.add(models.Comment(content=build_auto_launch_comment(issue, True, detail), username="Dwight", issue_id=issue.id))
+    db.commit()
+    return issue.launch_state
+
 
 app = FastAPI(title="Task Manager")
 
@@ -291,13 +527,20 @@ async def create_issue(request: Request, db: Session = Depends(get_db)):
 
     target_sprint_id = issue.sprint_id
     if target_sprint_id is None:
-        active_sprint = db.query(models.Sprint).filter(models.Sprint.is_active == True).first()
+        active_sprint = (
+            db.query(models.Sprint)
+            .filter(models.Sprint.is_active == True, models.Sprint.is_archived == False)
+            .order_by(models.Sprint.started_at.desc(), models.Sprint.id.desc())
+            .first()
+        )
         if active_sprint:
             target_sprint_id = active_sprint.id
     else:
         sprint = db.query(models.Sprint).filter(models.Sprint.id == target_sprint_id).first()
         if not sprint:
             raise HTTPException(status_code=404, detail="Sprint not found")
+        if sprint.is_archived:
+            raise HTTPException(status_code=400, detail="Archived sprints cannot receive issues")
 
     created_by = validate_tm_user(issue.created_by, field_name="created_by")
     assigned_to = validate_tm_user(issue.assigned_to, field_name="assigned_to", allow_blank=True)
@@ -311,15 +554,19 @@ async def create_issue(request: Request, db: Session = Depends(get_db)):
         sprint_id=target_sprint_id,
         branch=normalize_optional_text(issue.branch),
         repo_slug=normalize_optional_text(issue.repo_slug),
+        auto_launch_enabled=normalize_bool(issue.auto_launch_enabled),
         story_points=validate_story_points(issue.story_points),
         blocked_reason=normalize_optional_text(issue.blocked_reason),
         status="blocked" if normalize_optional_text(issue.blocked_reason) else "to_do",
         updated_at=datetime.now(),
     )
+    sync_issue_launch_state(db, db_issue)
     db.add(db_issue)
     db.flush()
     log_issue_activity(db, db_issue.id, "created", actor=created_by, new_value=db_issue.title)
     db.commit()
+    db.refresh(db_issue)
+    attempt_issue_auto_launch(db, db_issue.id)
     db.refresh(db_issue)
     return db_issue
 
@@ -351,6 +598,8 @@ def search_issues(
     needs_review: bool = False,
     stale_days: Optional[int] = None,
     in_backlog: bool = False,
+    operator_view: Optional[str] = None,
+    evidence_window_days: int = 1,
     db: Session = Depends(get_db),
 ):
     """Search issues with filters across title, description, comments, or exact issue ID."""
@@ -435,7 +684,15 @@ def search_issues(
         except ValueError:
             pass
 
-    return query.order_by(models.Issue.created_at.desc()).all()
+    issues = query.order_by(models.Issue.created_at.desc()).all()
+
+    if operator_view:
+        allowed_views = {"ready_not_queued", "active_launch_without_recent_evidence", "in_progress_no_pr"}
+        if operator_view not in allowed_views:
+            raise HTTPException(status_code=400, detail="Invalid operator_view")
+        issues = apply_operator_view(issues, operator_view, evidence_window_days)
+
+    return issues
 
 
 @app.get("/api/issues/{issue_id}", response_model=schemas.IssueResponse)
@@ -464,6 +721,8 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
             value = validate_tm_user(value, field_name="assigned_to", allow_blank=True)
         elif field == "status":
             value = normalize_status(value)
+        elif field == "auto_launch_enabled":
+            value = normalize_bool(value)
         if field == "story_points":
             value = validate_story_points(value)
         normalized_updates[field] = value
@@ -472,6 +731,8 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
         sprint = db.query(models.Sprint).filter(models.Sprint.id == normalized_updates["sprint_id"]).first()
         if not sprint:
             raise HTTPException(status_code=404, detail="Sprint not found")
+        if sprint.is_archived:
+            raise HTTPException(status_code=400, detail="Archived sprints cannot receive issues")
 
     if normalized_updates.get("blocked_reason") and "status" not in normalized_updates:
         normalized_updates["status"] = "blocked"
@@ -488,6 +749,70 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
                 log_issue_activity(db, issue_id, "field_changed", actor=actor, field_name=field, old_value=resolve_sprint_name(db, old_value), new_value=resolve_sprint_name(db, value))
             else:
                 log_issue_activity(db, issue_id, "field_changed", actor=actor, field_name=field, old_value=old_value, new_value=value)
+
+    if changed:
+        db_issue.updated_at = datetime.now()
+    sync_issue_launch_state(db, db_issue)
+
+    db.commit()
+    db.refresh(db_issue)
+    attempt_issue_auto_launch(db, db_issue.id)
+    db.refresh(db_issue)
+    return db_issue
+
+
+@app.post("/api/issues/{issue_id}/launch-result", response_model=schemas.IssueResponse)
+def record_issue_launch_result(issue_id: int, launch_update: schemas.IssueLaunchResultUpdate, db: Session = Depends(get_db)):
+    """Record launcher postback after autonomous execution has actually started or failed."""
+    db_issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+    if not db_issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    launch_state = normalize_optional_text(launch_update.launch_state)
+    if launch_state not in {"ready", "queued", "launched", "failed", "waiting", "disabled"}:
+        raise HTTPException(status_code=400, detail="Invalid launch_state")
+
+    actor = validate_tm_user(launch_update.username or "Dwight", field_name="username", allow_blank=False)
+    launch_error = normalize_optional_text(launch_update.launch_error)
+    comment_content = normalize_optional_text(launch_update.comment_content)
+
+    old_state = db_issue.launch_state
+    old_error = db_issue.launch_error
+    changed = False
+
+    if old_state != launch_state:
+        db_issue.launch_state = launch_state
+        log_issue_activity(
+            db,
+            issue_id,
+            "auto_launch",
+            actor=actor,
+            field_name="launch_state",
+            old_value=old_state,
+            new_value=launch_state,
+        )
+        changed = True
+
+    if old_error != launch_error:
+        db_issue.launch_error = launch_error
+        log_issue_activity(
+            db,
+            issue_id,
+            "auto_launch",
+            actor=actor,
+            field_name="launch_error",
+            old_value=old_error,
+            new_value=launch_error,
+        )
+        changed = True
+
+    if launch_state in {"launched", "failed"}:
+        db_issue.last_launch_at = datetime.now()
+        changed = True
+
+    if comment_content:
+        db.add(models.Comment(content=comment_content, username=actor, issue_id=issue_id))
+        changed = True
 
     if changed:
         db_issue.updated_at = datetime.now()
@@ -628,24 +953,38 @@ def delete_image(issue_id: int, image_id: int, db: Session = Depends(get_db)):
 @app.post("/api/sprints", response_model=schemas.SprintResponse)
 def create_sprint(sprint: schemas.SprintCreate, db: Session = Depends(get_db)):
     """Create a new sprint"""
-    db_sprint = models.Sprint(name=sprint.name, is_active=False)
+    db_sprint = models.Sprint(name=validate_sprint_name(sprint.name), is_active=False, is_archived=False)
     db.add(db_sprint)
     db.commit()
     db.refresh(db_sprint)
     return db_sprint
 
 @app.get("/api/sprints", response_model=List[schemas.SprintResponse])
-def get_sprints(active_only: bool = False, db: Session = Depends(get_db)):
+def get_sprints(
+    active_only: bool = False,
+    include_archived: bool = False,
+    archived_only: bool = False,
+    db: Session = Depends(get_db)
+):
     """Get all sprints"""
     query = db.query(models.Sprint)
+    if archived_only:
+        query = query.filter(models.Sprint.is_archived == True)
+    elif not include_archived:
+        query = query.filter(models.Sprint.is_archived == False)
     if active_only:
         query = query.filter(models.Sprint.is_active == True)
     return query.order_by(models.Sprint.id.desc()).all()
 
 @app.get("/api/sprints/active", response_model=schemas.SprintResponse)
 def get_active_sprint(db: Session = Depends(get_db)):
-    """Get the currently active sprint"""
-    sprint = db.query(models.Sprint).filter(models.Sprint.is_active == True).first()
+    """Get the most recently started active sprint for single-sprint UI defaults."""
+    sprint = (
+        db.query(models.Sprint)
+        .filter(models.Sprint.is_active == True, models.Sprint.is_archived == False)
+        .order_by(models.Sprint.started_at.desc(), models.Sprint.id.desc())
+        .first()
+    )
     if not sprint:
         raise HTTPException(status_code=404, detail="No active sprint")
     return sprint
@@ -658,22 +997,42 @@ def get_sprint(sprint_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Sprint not found")
     return sprint
 
-@app.post("/api/sprints/{sprint_id}/start")
-def start_sprint(sprint_id: int, db: Session = Depends(get_db)):
-    """Start a sprint"""
-    # End any currently active sprints
-    active_sprints = db.query(models.Sprint).filter(models.Sprint.is_active == True).all()
-    for sprint in active_sprints:
-        sprint.is_active = False
-        sprint.ended_at = datetime.now()
-    
-    # Start the new sprint
+@app.patch("/api/sprints/{sprint_id}", response_model=schemas.SprintResponse)
+def update_sprint(sprint_id: int, sprint_update: schemas.SprintUpdate, db: Session = Depends(get_db)):
+    """Update sprint metadata."""
     sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
-    
+
+    if sprint_update.name is not None:
+        sprint.name = validate_sprint_name(sprint_update.name)
+
+    if sprint_update.is_archived is not None:
+        sprint.is_archived = sprint_update.is_archived
+        if sprint_update.is_archived:
+            if sprint.is_active:
+                sprint.is_active = False
+                sprint.ended_at = datetime.now()
+        elif sprint.ended_at and sprint.is_active:
+            sprint.ended_at = None
+
+    db.commit()
+    db.refresh(sprint)
+    return sprint
+
+@app.post("/api/sprints/{sprint_id}/start")
+def start_sprint(sprint_id: int, db: Session = Depends(get_db)):
+    """Start a sprint without deactivating other active sprints."""
+    sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+    if sprint.is_archived:
+        raise HTTPException(status_code=400, detail="Archived sprints cannot be started")
+
     sprint.is_active = True
-    sprint.started_at = datetime.now()
+    if sprint.started_at is None:
+        sprint.started_at = datetime.now()
+    sprint.ended_at = None
     db.commit()
     return {"message": "Sprint started", "sprint_id": sprint_id}
 
@@ -690,6 +1049,32 @@ def end_sprint(sprint_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Sprint ended", "issues_retained": issue_count, "sprint_id": sprint_id}
 
+@app.delete("/api/sprints/{sprint_id}")
+def delete_sprint(sprint_id: int, db: Session = Depends(get_db)):
+    """Delete a sprint and move any linked issues back to backlog."""
+    sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint not found")
+
+    linked_issues = db.query(models.Issue).filter(models.Issue.sprint_id == sprint_id).all()
+    for issue in linked_issues:
+        issue.sprint_id = None
+        issue.updated_at = datetime.now()
+        log_issue_activity(
+            db,
+            issue.id,
+            "field_changed",
+            field_name="sprint_id",
+            old_value=resolve_sprint_name(db, sprint_id),
+            new_value="Backlog"
+        )
+
+    moved_count = len(linked_issues)
+    db.flush()
+    db.delete(sprint)
+    db.commit()
+    return {"message": "Sprint deleted", "sprint_id": sprint_id, "issues_moved_to_backlog": moved_count}
+
 @app.post("/api/issues/{issue_id}/assign-to-sprint")
 def assign_to_sprint(issue_id: int, sprint_id: int, db: Session = Depends(get_db)):
     """Assign an issue to a sprint without rewriting its status."""
@@ -700,6 +1085,8 @@ def assign_to_sprint(issue_id: int, sprint_id: int, db: Session = Depends(get_db
     sprint = db.query(models.Sprint).filter(models.Sprint.id == sprint_id).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
+    if sprint.is_archived:
+        raise HTTPException(status_code=400, detail="Archived sprints cannot receive issues")
 
     old_sprint_id = issue.sprint_id
     issue.sprint_id = sprint_id

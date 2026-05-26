@@ -21,6 +21,7 @@ class IssueCreate(BaseModel):
     sprint_id: Optional[int] = None
     branch: Optional[str] = None
     repo_slug: Optional[str] = None
+    auto_launch_enabled: bool = False
     acceptance_criteria: Optional[str] = None
     story_points: Optional[int] = None
     blocked_reason: Optional[str] = None
@@ -34,9 +35,17 @@ class IssueUpdate(BaseModel):
     assigned_to: Optional[str] = None
     branch: Optional[str] = None
     repo_slug: Optional[str] = None
+    auto_launch_enabled: Optional[bool] = None
     story_points: Optional[int] = None
     blocked_reason: Optional[str] = None
     updated_by: Optional[str] = None
+
+
+class IssueLaunchResultUpdate(BaseModel):
+    launch_state: str
+    launch_error: Optional[str] = None
+    comment_content: Optional[str] = None
+    username: Optional[str] = None
 
 class CommentCreate(BaseModel):
     content: str
@@ -89,6 +98,10 @@ class IssueResponse(BaseModel):
     assigned_to: Optional[str] = None
     branch: Optional[str] = None
     repo_slug: Optional[str] = None
+    auto_launch_enabled: bool = False
+    launch_state: Optional[str] = None
+    launch_error: Optional[str] = None
+    last_launch_at: Optional[datetime] = None
     story_points: Optional[int] = None
     blocked_reason: Optional[str] = None
     comments: List[CommentResponse] = []
@@ -101,10 +114,15 @@ class IssueResponse(BaseModel):
 class SprintCreate(BaseModel):
     name: str
 
+class SprintUpdate(BaseModel):
+    name: Optional[str] = None
+    is_archived: Optional[bool] = None
+
 class SprintResponse(BaseModel):
     id: int
     name: str
     is_active: bool
+    is_archived: bool
     started_at: Optional[datetime]
     ended_at: Optional[datetime]
     

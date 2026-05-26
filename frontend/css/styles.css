@@ -237,6 +237,23 @@ body {
     margin-bottom: 1rem;
 }
 
+.sprint-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.sprint-picker-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.sprint-picker {
+    min-width: 240px;
+}
+
 .sprint-header h3 {
     color: var(--text-primary);
 }
@@ -738,6 +755,25 @@ body {
     margin-bottom: 0.5rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.checkbox-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0 !important;
+    font-weight: 600;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
 }
 
 .form-group input,
