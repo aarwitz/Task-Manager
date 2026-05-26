@@ -135,6 +135,7 @@ window.TM_SHARED = (() => {
     const blockedPill = isBlocked(issue) ? `<span class="issue-pill blocked">Blocked${issue.blocked_reason ? `: ${escapeHtml(issue.blocked_reason)}` : ''}</span>` : '';
     const reviewPill = issue.status === 'in_review' ? '<span class="issue-pill review">Needs review</span>' : '';
     const pointsPill = issue.story_points != null ? `<span class="issue-pill">${issue.story_points} pts</span>` : '<span class="issue-pill muted">No points</span>';
+    const launchPill = issue.launch_state ? `<span class="issue-pill">${escapeHtml(formatStatus(issue.launch_state))}</span>` : '';
     const duplicates = context.duplicateMap?.get?.(issue.id) || [];
     const dupPill = duplicates.length ? `<span class="issue-pill duplicate">Possible dupes: ${duplicates.map(d => `#${d.id}`).join(', ')}</span>` : '';
 
@@ -147,7 +148,7 @@ window.TM_SHARED = (() => {
           </div>
           <span class="status-badge ${escapeHtml(issue.status)}">${formatStatus(issue.status)}</span>
         </div>
-        <div class="issue-pills">${pointsPill}${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
+        <div class="issue-pills">${pointsPill}${launchPill}${reviewPill}${blockedPill}${dupPill}<span class="issue-pill muted">${escapeHtml(staleLabel)}</span></div>
         <div class="issue-card-meta issue-card-footer">
           <span>${activitySummary(issue)}</span>
           <span class="inline-save-status" data-save-status="${issue.id}"></span>

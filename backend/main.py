@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, text as sql_text
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import uuid
 import shutil
@@ -293,7 +293,62 @@ def build_issue_launch_signature(issue: models.Issue) -> str:
     return "|".join(parts)
 
 
-def evaluate_issue_launch_readiness(issue: models.Issue) -> tuple[bool, str]:
+def issue_has_recent_evidence(issue: models.Issue, evidence_window_days: int) -> bool:
+    cutoff = datetime.now() - timedelta(days=max(evidence_window_days, 0))
+    for comment in issue.comments or []:
+        if not comment.created_at or comment.created_at < cutoff:
+            continue
+        if "evidence:" in (comment.content or "").lower():
+            return True
+    return False
+
+
+def issue_has_open_pr(issue: models.Issue) -> bool:
+    for comment in issue.comments or []:
+        content = (comment.content or "").lower()
+        if "pr_status=opened" in content or "/pull/" in content:
+            return True
+    return False
+
+
+def apply_operator_view(issues: List[models.Issue], operator_view: str, evidence_window_days: int) -> List[models.Issue]:
+    if operator_view == "ready_not_queued":
+        return [issue for issue in issues if issue.auto_launch_enabled and issue.launch_state == "ready"]
+    if operator_view == "active_launch_without_recent_evidence":
+        return [
+            issue
+            for issue in issues
+            if issue.launch_state in {"queued", "launched"} and not issue_has_recent_evidence(issue, evidence_window_days)
+        ]
+    if operator_view == "in_progress_no_pr":
+        return [
+            issue
+            for issue in issues
+            if issue.status == "in_progress"
+            and normalize_optional_text(issue.branch)
+            and normalize_optional_text(issue.repo_slug)
+            and not issue_has_open_pr(issue)
+        ]
+    return issues
+
+
+def find_agent_active_launch_issue(db: Session, issue: models.Issue) -> Optional[models.Issue]:
+    assignee = normalize_optional_text(issue.assigned_to)
+    if assignee not in EXECUTING_TM_USERS:
+        return None
+
+    query = (
+        db.query(models.Issue)
+        .filter(models.Issue.assigned_to == assignee)
+        .filter(models.Issue.launch_state.in_(["queued", "launched"]))
+        .order_by(models.Issue.last_launch_at.desc(), models.Issue.id.desc())
+    )
+    if issue.id is not None:
+        query = query.filter(models.Issue.id != issue.id)
+    return query.first()
+
+
+def evaluate_issue_launch_readiness(db: Session, issue: models.Issue) -> tuple[bool, str]:
     if not issue.auto_launch_enabled:
         return False, "Auto-launch disabled"
     if issue.assigned_to not in EXECUTING_TM_USERS:
@@ -310,6 +365,9 @@ def evaluate_issue_launch_readiness(issue: models.Issue) -> tuple[bool, str]:
         return False, "Acceptance criteria are required for auto-launch"
     if not normalize_optional_text(issue.title) and not normalize_optional_text(issue.description):
         return False, "Issue needs a concrete title or description"
+    conflicting_issue = find_agent_active_launch_issue(db, issue)
+    if conflicting_issue:
+        return False, f"{issue.assigned_to} already has active auto-launch issue #{conflicting_issue.id}"
     return True, "Ready"
 
 
@@ -327,8 +385,8 @@ def build_auto_launch_comment(issue: models.Issue, queued: bool, detail: str) ->
     )
 
 
-def sync_issue_launch_state(issue: models.Issue) -> tuple[bool, str]:
-    ready, reason = evaluate_issue_launch_readiness(issue)
+def sync_issue_launch_state(db: Session, issue: models.Issue) -> tuple[bool, str]:
+    ready, reason = evaluate_issue_launch_readiness(db, issue)
     if not issue.auto_launch_enabled:
         issue.launch_state = "disabled"
         issue.launch_error = None
@@ -347,7 +405,7 @@ def attempt_issue_auto_launch(db: Session, issue_id: int) -> Optional[str]:
     if not issue:
         return None
 
-    ready, reason = sync_issue_launch_state(issue)
+    ready, reason = sync_issue_launch_state(db, issue)
     if not ready:
         db.commit()
         return None
@@ -410,6 +468,7 @@ def attempt_issue_auto_launch(db: Session, issue_id: int) -> Optional[str]:
     db.add(models.Comment(content=build_auto_launch_comment(issue, True, detail), username="Dwight", issue_id=issue.id))
     db.commit()
     return issue.launch_state
+
 
 app = FastAPI(title="Task Manager")
 
@@ -501,7 +560,7 @@ async def create_issue(request: Request, db: Session = Depends(get_db)):
         status="blocked" if normalize_optional_text(issue.blocked_reason) else "to_do",
         updated_at=datetime.now(),
     )
-    sync_issue_launch_state(db_issue)
+    sync_issue_launch_state(db, db_issue)
     db.add(db_issue)
     db.flush()
     log_issue_activity(db, db_issue.id, "created", actor=created_by, new_value=db_issue.title)
@@ -539,6 +598,8 @@ def search_issues(
     needs_review: bool = False,
     stale_days: Optional[int] = None,
     in_backlog: bool = False,
+    operator_view: Optional[str] = None,
+    evidence_window_days: int = 1,
     db: Session = Depends(get_db),
 ):
     """Search issues with filters across title, description, comments, or exact issue ID."""
@@ -623,7 +684,15 @@ def search_issues(
         except ValueError:
             pass
 
-    return query.order_by(models.Issue.created_at.desc()).all()
+    issues = query.order_by(models.Issue.created_at.desc()).all()
+
+    if operator_view:
+        allowed_views = {"ready_not_queued", "active_launch_without_recent_evidence", "in_progress_no_pr"}
+        if operator_view not in allowed_views:
+            raise HTTPException(status_code=400, detail="Invalid operator_view")
+        issues = apply_operator_view(issues, operator_view, evidence_window_days)
+
+    return issues
 
 
 @app.get("/api/issues/{issue_id}", response_model=schemas.IssueResponse)
@@ -683,11 +752,72 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
 
     if changed:
         db_issue.updated_at = datetime.now()
-    sync_issue_launch_state(db_issue)
+    sync_issue_launch_state(db, db_issue)
 
     db.commit()
     db.refresh(db_issue)
     attempt_issue_auto_launch(db, db_issue.id)
+    db.refresh(db_issue)
+    return db_issue
+
+
+@app.post("/api/issues/{issue_id}/launch-result", response_model=schemas.IssueResponse)
+def record_issue_launch_result(issue_id: int, launch_update: schemas.IssueLaunchResultUpdate, db: Session = Depends(get_db)):
+    """Record launcher postback after autonomous execution has actually started or failed."""
+    db_issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+    if not db_issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    launch_state = normalize_optional_text(launch_update.launch_state)
+    if launch_state not in {"ready", "queued", "launched", "failed", "waiting", "disabled"}:
+        raise HTTPException(status_code=400, detail="Invalid launch_state")
+
+    actor = validate_tm_user(launch_update.username or "Dwight", field_name="username", allow_blank=False)
+    launch_error = normalize_optional_text(launch_update.launch_error)
+    comment_content = normalize_optional_text(launch_update.comment_content)
+
+    old_state = db_issue.launch_state
+    old_error = db_issue.launch_error
+    changed = False
+
+    if old_state != launch_state:
+        db_issue.launch_state = launch_state
+        log_issue_activity(
+            db,
+            issue_id,
+            "auto_launch",
+            actor=actor,
+            field_name="launch_state",
+            old_value=old_state,
+            new_value=launch_state,
+        )
+        changed = True
+
+    if old_error != launch_error:
+        db_issue.launch_error = launch_error
+        log_issue_activity(
+            db,
+            issue_id,
+            "auto_launch",
+            actor=actor,
+            field_name="launch_error",
+            old_value=old_error,
+            new_value=launch_error,
+        )
+        changed = True
+
+    if launch_state in {"launched", "failed"}:
+        db_issue.last_launch_at = datetime.now()
+        changed = True
+
+    if comment_content:
+        db.add(models.Comment(content=comment_content, username=actor, issue_id=issue_id))
+        changed = True
+
+    if changed:
+        db_issue.updated_at = datetime.now()
+
+    db.commit()
     db.refresh(db_issue)
     return db_issue
 

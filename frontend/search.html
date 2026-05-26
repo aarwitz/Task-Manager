@@ -36,6 +36,25 @@
             <h1>Search Issues</h1>
         </div>
 
+        <div class="filters-panel">
+            <div class="filters-header">
+                <h3>Operator Views</h3>
+                <button id="clearOperatorViewBtn" class="btn btn-secondary btn-sm">Show All</button>
+            </div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <button type="button" class="btn btn-secondary btn-sm operator-view-btn" data-operator-view="ready_not_queued">Ready, Not Queued</button>
+                </div>
+                <div class="filter-group">
+                    <button type="button" class="btn btn-secondary btn-sm operator-view-btn" data-operator-view="active_launch_without_recent_evidence">Queued/Launched, No Recent Evidence</button>
+                </div>
+                <div class="filter-group">
+                    <button type="button" class="btn btn-secondary btn-sm operator-view-btn" data-operator-view="in_progress_no_pr">In Progress, No PR</button>
+                </div>
+            </div>
+            <small id="operatorViewSummary" class="muted-text">No operator view selected.</small>
+        </div>
+
         <!-- Search Bar -->
         <div class="search-bar-container">
             <input type="text" id="searchInput" class="search-input" placeholder="Search issues or enter exact issue # (e.g. 4 or #4)" autocomplete="off">

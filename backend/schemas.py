@@ -40,6 +40,13 @@ class IssueUpdate(BaseModel):
     blocked_reason: Optional[str] = None
     updated_by: Optional[str] = None
 
+
+class IssueLaunchResultUpdate(BaseModel):
+    launch_state: str
+    launch_error: Optional[str] = None
+    comment_content: Optional[str] = None
+    username: Optional[str] = None
+
 class CommentCreate(BaseModel):
     content: str
     username: str
