@@ -46,6 +46,21 @@ class IssueLaunchResultUpdate(BaseModel):
     launch_error: Optional[str] = None
     comment_content: Optional[str] = None
     username: Optional[str] = None
+    claim_token: Optional[str] = None
+
+
+class IssueLaunchClaimCreate(BaseModel):
+    claimant: str
+    source: str
+    expected_signature: Optional[str] = None
+
+
+class IssueLaunchClaimResponse(BaseModel):
+    issue_id: int
+    claim_token: str
+    claim_source: str
+    claimant: str
+    claimed_at: datetime
 
 class CommentCreate(BaseModel):
     content: str
@@ -102,6 +117,9 @@ class IssueResponse(BaseModel):
     launch_state: Optional[str] = None
     launch_error: Optional[str] = None
     last_launch_at: Optional[datetime] = None
+    launch_claim_token: Optional[str] = None
+    launch_claimed_at: Optional[datetime] = None
+    launch_claim_source: Optional[str] = None
     story_points: Optional[int] = None
     blocked_reason: Optional[str] = None
     comments: List[CommentResponse] = []

@@ -299,6 +299,79 @@ def test_launch_result_endpoint_records_state_error_comment_and_activity():
     assert any(event['field_name'] == 'launch_state' and event['new_value'] == 'launched' for event in auto_launch_events)
 
 
+def test_launch_claim_endpoint_acquires_token_and_rejects_second_claim():
+    issue = create_issue(
+        title='Claim me',
+        description='Ready for manual launch claim',
+        created_by='Dwight',
+        assigned_to='Jerry',
+        branch='issue-401-claim',
+        repo_slug='aarwitz/Task-Manager',
+        acceptance_criteria='Launch claim should serialize trigger sources',
+    )
+    updated = client.patch(
+        f"/api/issues/{issue['id']}",
+        json={'status': 'in_progress', 'updated_by': 'Dwight'},
+    )
+    assert updated.status_code == 200, updated.text
+
+    claim = client.post(
+        f"/api/issues/{issue['id']}/launch-claim",
+        json={'claimant': 'Dwight', 'source': 'manual'},
+    )
+    assert claim.status_code == 200, claim.text
+    claim_body = claim.json()
+    assert claim_body['claim_source'] == 'manual'
+    assert claim_body['claim_token']
+
+    duplicate = client.post(
+        f"/api/issues/{issue['id']}/launch-claim",
+        json={'claimant': 'Dwight', 'source': 'tm-auto'},
+    )
+    assert duplicate.status_code == 409
+    assert 'already claimed' in duplicate.text
+
+
+def test_launch_result_clears_matching_claim_token():
+    issue = create_issue(
+        title='Claimed launch target',
+        description='Queue me',
+        created_by='Dwight',
+        assigned_to='Jerry',
+        branch='issue-402-claimed-launch',
+        repo_slug='aarwitz/Task-Manager',
+        acceptance_criteria='Matching claim token should be required and then cleared',
+    )
+    updated = client.patch(
+        f"/api/issues/{issue['id']}",
+        json={'status': 'in_progress', 'updated_by': 'Dwight'},
+    )
+    assert updated.status_code == 200, updated.text
+    claim = client.post(
+        f"/api/issues/{issue['id']}/launch-claim",
+        json={'claimant': 'Dwight', 'source': 'manual'},
+    )
+    assert claim.status_code == 200, claim.text
+    claim_token = claim.json()['claim_token']
+
+    mismatch = client.post(
+        f"/api/issues/{issue['id']}/launch-result",
+        json={'launch_state': 'launched', 'username': 'Dwight', 'claim_token': 'wrong-token'},
+    )
+    assert mismatch.status_code == 409
+    assert 'Launch claim token mismatch' in mismatch.text
+
+    launched = client.post(
+        f"/api/issues/{issue['id']}/launch-result",
+        json={'launch_state': 'launched', 'username': 'Dwight', 'claim_token': claim_token},
+    )
+    assert launched.status_code == 200, launched.text
+    body = launched.json()
+    assert body['launch_state'] == 'launched'
+    assert body['launch_claim_token'] is None
+    assert body['launch_claim_source'] is None
+
+
 def test_launch_result_endpoint_rejects_invalid_state():
     issue = create_issue()
     response = client.post(

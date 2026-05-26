@@ -31,6 +31,9 @@ class Issue(Base):
     launch_state = Column(String, nullable=True)
     launch_error = Column(Text, nullable=True)
     last_launch_at = Column(DateTime, nullable=True)
+    launch_claim_token = Column(String, nullable=True)
+    launch_claimed_at = Column(DateTime, nullable=True)
+    launch_claim_source = Column(String, nullable=True)
     story_points = Column(Integer, nullable=True)
     blocked_reason = Column(Text, nullable=True)
     

@@ -51,6 +51,12 @@ def run_safe_migrations():
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_error TEXT"))
         if "last_launch_at" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN last_launch_at DATETIME"))
+        if "launch_claim_token" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_claim_token VARCHAR"))
+        if "launch_claimed_at" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_claimed_at DATETIME"))
+        if "launch_claim_source" not in columns:
+            conn.execute(sql_text("ALTER TABLE issues ADD COLUMN launch_claim_source VARCHAR"))
         if "updated_at" not in columns:
             conn.execute(sql_text("ALTER TABLE issues ADD COLUMN updated_at DATETIME"))
             conn.execute(sql_text("UPDATE issues SET updated_at = created_at WHERE updated_at IS NULL"))
@@ -115,6 +121,9 @@ def cleanup_priority_column_if_present():
                 launch_state VARCHAR,
                 launch_error TEXT,
                 last_launch_at DATETIME,
+                launch_claim_token VARCHAR,
+                launch_claimed_at DATETIME,
+                launch_claim_source VARCHAR,
                 updated_at DATETIME,
                 story_points INTEGER,
                 blocked_reason TEXT,
@@ -123,8 +132,8 @@ def cleanup_priority_column_if_present():
             )
         """))
         conn.execute(sql_text("""
-            INSERT INTO issues_new (id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, auto_launch_enabled, launch_signature, launch_state, launch_error, last_launch_at, updated_at, story_points, blocked_reason, repo_slug)
-            SELECT id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, 0, NULL, NULL, NULL, NULL, updated_at, story_points, blocked_reason, repo_slug
+            INSERT INTO issues_new (id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, auto_launch_enabled, launch_signature, launch_state, launch_error, last_launch_at, launch_claim_token, launch_claimed_at, launch_claim_source, updated_at, story_points, blocked_reason, repo_slug)
+            SELECT id, title, description, status, sprint_id, created_at, created_by, assigned_to, branch, acceptance_criteria, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, updated_at, story_points, blocked_reason, repo_slug
             FROM issues
         """))
         conn.execute(sql_text("DROP TABLE issues"))
@@ -348,8 +357,13 @@ def find_agent_active_launch_issue(db: Session, issue: models.Issue) -> Optional
     return query.first()
 
 
-def evaluate_issue_launch_readiness(db: Session, issue: models.Issue) -> tuple[bool, str]:
-    if not issue.auto_launch_enabled:
+def evaluate_issue_execution_readiness(
+    db: Session,
+    issue: models.Issue,
+    *,
+    require_auto_launch_enabled: bool,
+) -> tuple[bool, str]:
+    if require_auto_launch_enabled and not issue.auto_launch_enabled:
         return False, "Auto-launch disabled"
     if issue.assigned_to not in EXECUTING_TM_USERS:
         return False, "Assign this issue to Dwight, Jerry, Resi, or Druck"
@@ -371,6 +385,54 @@ def evaluate_issue_launch_readiness(db: Session, issue: models.Issue) -> tuple[b
     return True, "Ready"
 
 
+def evaluate_issue_launch_readiness(db: Session, issue: models.Issue) -> tuple[bool, str]:
+    return evaluate_issue_execution_readiness(db, issue, require_auto_launch_enabled=True)
+
+
+def clear_issue_launch_claim(issue: models.Issue) -> None:
+    issue.launch_claim_token = None
+    issue.launch_claimed_at = None
+    issue.launch_claim_source = None
+
+
+def acquire_issue_launch_claim(
+    db: Session,
+    issue: models.Issue,
+    *,
+    claimant: str,
+    source: str,
+    expected_signature: Optional[str],
+    require_auto_launch_enabled: bool,
+) -> tuple[bool, str]:
+    ready, reason = evaluate_issue_execution_readiness(
+        db,
+        issue,
+        require_auto_launch_enabled=require_auto_launch_enabled,
+    )
+    if not ready:
+        return False, reason
+    if expected_signature and build_issue_launch_signature(issue) != expected_signature:
+        return False, "Issue changed before launch claim could be acquired"
+    if issue.launch_state in {"queued", "launched"}:
+        return False, f"Issue already has active launch_state={issue.launch_state}"
+    if normalize_optional_text(issue.launch_claim_token):
+        return False, f"Issue already claimed by {normalize_optional_text(issue.launch_claim_source) or 'another launcher'}"
+
+    issue.launch_claim_token = str(uuid.uuid4())
+    issue.launch_claimed_at = datetime.now()
+    issue.launch_claim_source = normalize_optional_text(source) or "unknown"
+    log_issue_activity(
+        db,
+        issue.id,
+        "auto_launch",
+        actor=claimant,
+        field_name="launch_claim_token",
+        old_value=None,
+        new_value=issue.launch_claim_source,
+    )
+    return True, issue.launch_claim_token
+
+
 def build_auto_launch_comment(issue: models.Issue, queued: bool, detail: str) -> str:
     if queued:
         return (
@@ -390,6 +452,7 @@ def sync_issue_launch_state(db: Session, issue: models.Issue) -> tuple[bool, str
     if not issue.auto_launch_enabled:
         issue.launch_state = "disabled"
         issue.launch_error = None
+        clear_issue_launch_claim(issue)
     elif ready:
         if issue.launch_state not in {"queued", "launched"}:
             issue.launch_state = "ready"
@@ -397,6 +460,8 @@ def sync_issue_launch_state(db: Session, issue: models.Issue) -> tuple[bool, str
     else:
         issue.launch_state = "waiting"
         issue.launch_error = reason
+        if issue.launch_state not in {"queued", "launched"}:
+            clear_issue_launch_claim(issue)
     return ready, reason
 
 
@@ -415,15 +480,39 @@ def attempt_issue_auto_launch(db: Session, issue_id: int) -> Optional[str]:
         db.commit()
         return "duplicate_skipped"
 
+    claimed, claim_value = acquire_issue_launch_claim(
+        db,
+        issue,
+        claimant="Dwight",
+        source="tm-auto",
+        expected_signature=signature,
+        require_auto_launch_enabled=True,
+    )
+    if not claimed:
+        issue.launch_state = "waiting"
+        issue.launch_error = claim_value
+        db.commit()
+        return "claim_failed"
+
     if not os.path.isfile(DWIGHT_ISSUE_LAUNCHER):
         issue.launch_state = "failed"
         issue.launch_error = f"Launcher missing: {DWIGHT_ISSUE_LAUNCHER}"
         issue.last_launch_at = datetime.now()
+        clear_issue_launch_claim(issue)
         db.commit()
         return "failed"
 
     os.makedirs(os.path.dirname(TM_AUTO_LAUNCH_LOG), exist_ok=True)
-    cmd = [DWIGHT_ISSUE_LAUNCHER, "--issue-id", str(issue_id), "--execute"]
+    cmd = [
+        DWIGHT_ISSUE_LAUNCHER,
+        "--issue-id",
+        str(issue_id),
+        "--execute",
+        "--claim-token",
+        claim_value,
+        "--claim-source",
+        "tm-auto",
+    ]
     detail = TM_AUTO_LAUNCH_LOG
     try:
         with open(TM_AUTO_LAUNCH_LOG, "a", encoding="utf-8") as log_file:
@@ -443,6 +532,7 @@ def attempt_issue_auto_launch(db: Session, issue_id: int) -> Optional[str]:
         issue.last_launch_at = datetime.now()
         issue.launch_state = "failed"
         issue.launch_error = str(exc)
+        clear_issue_launch_claim(issue)
         log_issue_activity(
             db,
             issue.id,
@@ -761,6 +851,55 @@ def update_issue(issue_id: int, issue_update: schemas.IssueUpdate, db: Session =
     return db_issue
 
 
+@app.post("/api/issues/{issue_id}/launch-claim", response_model=schemas.IssueLaunchClaimResponse)
+def claim_issue_launch(issue_id: int, claim_request: schemas.IssueLaunchClaimCreate, db: Session = Depends(get_db)):
+    db_issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+    if not db_issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    claimant = validate_tm_user(claim_request.claimant, field_name="claimant")
+    source = normalize_optional_text(claim_request.source)
+    if not source:
+        raise HTTPException(status_code=400, detail="source is required")
+
+    claimed, claim_value = acquire_issue_launch_claim(
+        db,
+        db_issue,
+        claimant=claimant,
+        source=source,
+        expected_signature=normalize_optional_text(claim_request.expected_signature),
+        require_auto_launch_enabled=False,
+    )
+    if not claimed:
+        raise HTTPException(status_code=409, detail=claim_value)
+
+    db_issue.updated_at = datetime.now()
+    db.commit()
+    db.refresh(db_issue)
+    return schemas.IssueLaunchClaimResponse(
+        issue_id=db_issue.id,
+        claim_token=db_issue.launch_claim_token or claim_value,
+        claim_source=db_issue.launch_claim_source or source,
+        claimant=claimant,
+        claimed_at=db_issue.launch_claimed_at or datetime.now(),
+    )
+
+
+@app.delete("/api/issues/{issue_id}/launch-claim")
+def release_issue_launch_claim(issue_id: int, claim_token: str = Query(...), db: Session = Depends(get_db)):
+    db_issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+    if not db_issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    current_token = normalize_optional_text(db_issue.launch_claim_token)
+    if not current_token or current_token != normalize_optional_text(claim_token):
+        raise HTTPException(status_code=409, detail="Launch claim token mismatch")
+
+    clear_issue_launch_claim(db_issue)
+    db_issue.updated_at = datetime.now()
+    db.commit()
+    return {"released": True}
+
+
 @app.post("/api/issues/{issue_id}/launch-result", response_model=schemas.IssueResponse)
 def record_issue_launch_result(issue_id: int, launch_update: schemas.IssueLaunchResultUpdate, db: Session = Depends(get_db)):
     """Record launcher postback after autonomous execution has actually started or failed."""
@@ -775,6 +914,11 @@ def record_issue_launch_result(issue_id: int, launch_update: schemas.IssueLaunch
     actor = validate_tm_user(launch_update.username or "Dwight", field_name="username", allow_blank=False)
     launch_error = normalize_optional_text(launch_update.launch_error)
     comment_content = normalize_optional_text(launch_update.comment_content)
+    claim_token = normalize_optional_text(launch_update.claim_token)
+
+    current_claim = normalize_optional_text(db_issue.launch_claim_token)
+    if current_claim and current_claim != claim_token:
+        raise HTTPException(status_code=409, detail="Launch claim token mismatch")
 
     old_state = db_issue.launch_state
     old_error = db_issue.launch_error
@@ -808,6 +952,7 @@ def record_issue_launch_result(issue_id: int, launch_update: schemas.IssueLaunch
 
     if launch_state in {"launched", "failed"}:
         db_issue.last_launch_at = datetime.now()
+        clear_issue_launch_claim(db_issue)
         changed = True
 
     if comment_content:
